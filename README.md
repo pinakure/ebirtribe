@@ -2,6 +2,7 @@
 
 **LUSH EbirTribE EMX-1** es un clon de la mítica caja de ritmos y sintetizador **Korg Electribe EMX-1**, desarrollado en Python. El proyecto replica la interfaz de usuario, las funciones de secuenciación y las capacidades de síntesis de audio del hardware original en un entorno de software accesible.
 
+![snapshot](resources/snapshot.png)
 ## Características
 
 * **Emulación de EMX-1:** Recreación de las funciones lógicas, de secuenciación y de síntesis basadas en el hardware original.
