@@ -189,13 +189,13 @@ class Buttons:
         }
 
 class Knobs:
-    JOG_WHEEL           = 0x100
-    PART_COMMON_LEVEL   = 0x101
-    PART_COMMON_PANNING = 0x102
-    TUNE_PITCH          = 0x103
-    TUNE_BEND           = 0x104
-    PATTERN             = 0x105
-    STEP_EDIT           = 0x106
+    JOG_WHEEL           = 0x00
+    PART_COMMON_LEVEL   = 0x01
+    PART_COMMON_PANNING = 0x02
+    TUNE_PITCH          = 0x03
+    TUNE_BEND           = 0x04
+    PATTERN             = 0x05
+    STEP_EDIT           = 0x06
     def get(): 
         return {
             Knobs.PART_COMMON_LEVEL     : Knob('LEVEL'      ,1063, 182),
@@ -207,28 +207,28 @@ class Knobs:
         }
 
 class JogWheels:
-    GENERAL             = 0x200
+    GENERAL             = 0x00
     def get():
         return {
             JogWheels.GENERAL           : JogWheel('GENERAL'   , 506, 134),
         }
         
 class Faders:
-    TEMPO               = 0x300
+    TEMPO               = 0x00
     def get():
         return {
             Faders.TEMPO                : Fader('TEMPO'     ,  76, 679,  88, 231),
         }
 
 class Valves:
-    VALVES             = 0x400
+    VALVES              = 0x00
     def get():
         return {
             Valves.VALVES               : Valve('VALVES'    , 741, 161, 273, 154),
         }
 
 class Lcds:
-    MAIN                = 0x500
+    MAIN                = 0x00
     def get():
         return {
             Lcds.MAIN                   : Lcd('MAIN'      ,  95, 151, 360, 160),

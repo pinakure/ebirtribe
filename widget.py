@@ -254,6 +254,7 @@ class Widget:
         return False
 
 class Knob(Widget):
+    
     def __init__(self, name="UnnamedKnob", x=0, y=0, width=96, height=96, min=0, value=0, max=255):
         super().__init__(Widget.KNOB, name, x, y, width, height, min, value, max)
         

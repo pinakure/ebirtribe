@@ -5,7 +5,7 @@ import  interface
 from    interface       import JUMP_TABLE, CallBacks
 import  os
 import  filesys
-from    widget          import LedTypes
+from    widget          import LedTypes,Widget
 
 
 class ResourceContainer:
@@ -59,36 +59,45 @@ class UI:
         txt_titulo = app.fonts.heading.render(app.name.upper(), True, (130, 250, 50))
         app.screen.blit(txt_titulo, (app.width // 2 - txt_titulo.get_width() // 2, app.height // 3 - 40))
         pygame.display.flip()
-
+    
+    def autoload(class_name, offset=0x0000):
+        def vars(cls):
+            return [
+                attr for attr, value in cls.__dict__.items()
+                if not attr.startswith('__')                  # Filter out internal dunder attributes
+                and not inspect.isfunction(value)             # Filter out regular methods
+                and not isinstance(value, classmethod)        # Filter out @classmethods
+                and not isinstance(value, staticmethod)       # Filter out @staticmethods
+            ]
+        condition   = True if hasattr(interface, class_name) and inspect.isclass(getattr(interface, class_name)) else False
+        if condition == False: return {}
+        instance    = eval(f'interface.{class_name}') 
+        # Auto Mangle widget IDs (separate each group of ids by a 0x1000 offset amongst each category ), if defined        
+        for k in vars(instance): setattr(instance, k, eval(f'interface.{class_name}.{k}')+offset)                        
+        data        = instance.get()
+        print(f'[ UI ] Loading {len(data)} {class_name} widgets...')
+        [ print(f'[ UI ] Initializing {class_name} widget {w.name}') for k,w in data.items()]
+        return data
+    
     def create():
-        knobs    = True if hasattr(interface, 'Knobs'    ) and inspect.isclass(getattr(interface, 'Knobs'    )) else False
-        sliders  = True if hasattr(interface, 'Sliders'  ) and inspect.isclass(getattr(interface, 'Sliders'  )) else False
-        faders   = True if hasattr(interface, 'Faders'   ) and inspect.isclass(getattr(interface, 'Faders'   )) else False
-        buttons  = True if hasattr(interface, 'Buttons'  ) and inspect.isclass(getattr(interface, 'Buttons'  )) else False
-        pads     = True if hasattr(interface, 'Pads'     ) and inspect.isclass(getattr(interface, 'Pads'     )) else False
-        leds     = True if hasattr(interface, 'Leds'     ) and inspect.isclass(getattr(interface, 'Leds'     )) else False
-        valves   = True if hasattr(interface, 'Valves'   ) and inspect.isclass(getattr(interface, 'Valves'   )) else False
-        lcds     = True if hasattr(interface, 'Lcds'     ) and inspect.isclass(getattr(interface, 'Lcds'     )) else False
-        vumeters = True if hasattr(interface, 'Vumeters' ) and inspect.isclass(getattr(interface, 'Vumeters' )) else False
-        jogs     = True if hasattr(interface, 'JogWheels') and inspect.isclass(getattr(interface, 'JogWheels')) else False
         widgets  = {}
-        widgets  |= interface.Knobs.get()       if knobs    else {}
-        widgets  |= interface.Faders.get()      if faders   else {}
-        widgets  |= interface.Buttons.get()     if buttons  else {}
-        widgets  |= interface.Sliders.get()     if sliders  else {}
-        widgets  |= interface.Pads.get()        if pads     else {}
-        widgets  |= interface.Leds.get()        if leds     else {}
-        widgets  |= interface.Valves.get()      if valves   else {}
-        widgets  |= interface.Lcds.get()        if lcds     else {}
-        widgets  |= interface.Vumeters.get()    if vumeters else {}   
-        widgets  |= interface.JogWheels.get()   if jogs     else {}   
+        widgets |= UI.autoload('Knobs'           , 0x0000)
+        widgets |= UI.autoload('Sliders'         , 0x1000)
+        widgets |= UI.autoload('Faders'          , 0x2000)
+        widgets |= UI.autoload('Buttons'         , 0x3000)
+        widgets |= UI.autoload('Pads'            , 0x4000)
+        widgets |= UI.autoload('Leds'            , 0x5000)
+        widgets |= UI.autoload('Valves'          , 0x6000)
+        widgets |= UI.autoload('Lcds'            , 0x7000)
+        widgets |= UI.autoload('Vumeters'        , 0x8000)
+        widgets |= UI.autoload('JogWheels'       , 0x9000)        
         UI.widgets = widgets
             
     def redraw( ):
         app = UI.app
         app.screen.blit(app.backdrop, (0, 0))
         for _,w in UI.widgets.items():
-            w.render( app )
+            w.render( app )            
             
     def handle( event, app ):
         # Comprobar si el evento es recibido por un widget
