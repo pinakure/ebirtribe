@@ -5,6 +5,8 @@ import  interface
 from    interface       import JUMP_TABLE, CallBacks
 import  os
 import  filesys
+from    widget          import LedTypes
+
 
 class ResourceContainer:
     pass
@@ -24,9 +26,14 @@ class UI:
         app.resources   = UI.loadResources( app )
         app.backdrop    = app.resources.deck            
         UI.splash       (app)
-        UI.loadFonts    (app)        
+        UI.initWidgets  (app)
+        UI.loadFonts    (app)
         app.clock       = pygame.time.Clock()
         return Window.from_display_module()
+    
+    def initWidgets( app ):
+        # Preinitialize Geometry and blit positions
+        LedTypes.init()
     
     def loadResources( app ):
         resources = ResourceContainer()

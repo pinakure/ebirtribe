@@ -1,4 +1,57 @@
-from widget     import Knob, Slider, Fader, Button, Pad, Led, Valve, Lcd, Vumeter, JogWheel
+from widget     import Knob, Slider, Fader, Button, Pad, Led, Valve, Lcd, Vumeter, JogWheel, LedTypes
+
+class Leds:
+    STEP_01             = 0x00
+    STEP_02             = 0x01
+    STEP_03             = 0x02
+    STEP_04             = 0x03
+    STEP_05             = 0x04
+    STEP_06             = 0x05
+    STEP_07             = 0x06
+    STEP_08             = 0x07
+    STEP_09             = 0x08
+    STEP_10             = 0x09
+    STEP_11             = 0x0A
+    STEP_12             = 0x0B
+    STEP_13             = 0x0C
+    STEP_14             = 0x0D
+    STEP_15             = 0x0E
+    STEP_16             = 0x0F
+    ERASE_RED           = 0x10
+    ERASE_GREEN         = 0x11
+    WRITE_RED           = 0x12
+    WRITE_GREEN         = 0x13
+    STEP_COPY           = 0x14
+    STEP_REPLACE        = 0x15
+    STEP_INSERT         = 0x16
+    STEP_DELETE         = 0x17    
+    def get():
+        return {
+            Leds.STEP_01        : Led('STEP_01'     , 264+(74 * 0x00), 687,  32,  32, LedTypes.TYPE_BIG    ),
+            Leds.STEP_02        : Led('STEP_02'     , 264+(74 * 0x01), 687,  32,  32, LedTypes.TYPE_BIG    ),
+            Leds.STEP_03        : Led('STEP_03'     , 264+(74 * 0x02), 687,  32,  32, LedTypes.TYPE_BIG    ),
+            Leds.STEP_04        : Led('STEP_04'     , 264+(74 * 0x03), 687,  32,  32, LedTypes.TYPE_BIG    ),
+            Leds.STEP_05        : Led('STEP_05'     , 264+(74 * 0x04), 687,  32,  32, LedTypes.TYPE_BIG    ),
+            Leds.STEP_06        : Led('STEP_06'     , 264+(74 * 0x05), 687,  32,  32, LedTypes.TYPE_BIG    ),
+            Leds.STEP_07        : Led('STEP_07'     , 264+(74 * 0x06), 687,  32,  32, LedTypes.TYPE_BIG    ),
+            Leds.STEP_08        : Led('STEP_08'     , 264+(74 * 0x07), 687,  32,  32, LedTypes.TYPE_BIG    ),
+            Leds.STEP_09        : Led('STEP_09'     , 264+(74 * 0x08), 687,  32,  32, LedTypes.TYPE_BIG    ),
+            Leds.STEP_10        : Led('STEP_10'     , 264+(74 * 0x09), 687,  32,  32, LedTypes.TYPE_BIG    ),
+            Leds.STEP_11        : Led('STEP_11'     , 264+(74 * 0x0A), 687,  32,  32, LedTypes.TYPE_BIG    ),
+            Leds.STEP_12        : Led('STEP_12'     , 264+(74 * 0x0B), 687,  32,  32, LedTypes.TYPE_BIG    ),
+            Leds.STEP_13        : Led('STEP_13'     , 264+(74 * 0x0C), 687,  32,  32, LedTypes.TYPE_BIG    ),
+            Leds.STEP_14        : Led('STEP_14'     , 264+(74 * 0x0D), 687,  32,  32, LedTypes.TYPE_BIG    ),
+            Leds.STEP_15        : Led('STEP_15'     , 264+(74 * 0x0E), 687,  32,  32, LedTypes.TYPE_BIG    ),
+            Leds.STEP_16        : Led('STEP_16'     , 264+(74 * 0x0F), 687,  32,  32, LedTypes.TYPE_BIG    ),
+            Leds.ERASE_RED      : Led('ERASE_RED'   ,             421, 475,  32,  32, LedTypes.TYPE_HUGE   ),
+            Leds.ERASE_GREEN    : Led('ERASE_GREEN' ,             480, 475,  32,  32, LedTypes.TYPE_HUGE   ),
+            Leds.WRITE_RED      : Led('WRITE_RED'   ,             538, 475,  32,  32, LedTypes.TYPE_HUGE   ),
+            Leds.WRITE_GREEN    : Led('WRITE_GREEN' ,             599, 475,  32,  32, LedTypes.TYPE_HUGE   ),
+            Leds.STEP_COPY      : Led('STEP_COPY'   ,            1200, 484,  24,  24, LedTypes.TYPE_MID    ),
+            Leds.STEP_REPLACE   : Led('STEP_REPLACE',            1200, 515,  24,  24, LedTypes.TYPE_MID    ),
+            Leds.STEP_INSERT    : Led('STEP_INSERT' ,            1200, 545,  24,  24, LedTypes.TYPE_MID    ),
+            Leds.STEP_DELETE    : Led('STEP_DELETE' ,            1200, 577,  24,  24, LedTypes.TYPE_MID    ),
+        }
 
 class Buttons:
     FUNCTION_MENU       = 0x00
