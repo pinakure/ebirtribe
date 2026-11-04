@@ -238,11 +238,15 @@ class Widget:
         
     def render(self, app):
         surface         = app.screen
-        txt             = app.fonts.tiny.render(f"{self.name}=", True, (255, 255, 255))
-        val             = app.fonts.tiny.render(f"{str(self.value).ljust(8)} {int(self.min)}", True, (255, 55, 0))
-        
-        surface.blit    ( txt, (self.rect.x, self.rect.y - 8))
-        surface.blit    ( val, (self.rect.x + txt.get_size()[0], self.rect.y-8))
+        txt             = app.fonts.tiny.render(f"{self.name}", True, (255, 255, 255))
+        val             = app.fonts.tiny.render(f"{str(self.value).rjust(4, '0').ljust(8,'0')}"[0:8], True, (255, 55, 0))
+        tw, th          = txt.get_size()
+        vw, vh          = val.get_size()
+        mid             = ( (self.rect.x+(self.rect.width >>1)), (self.rect.y+(self.rect.height>>1)) )
+        tpos            = ( mid[0]-(tw>>1), mid[1]-(th))
+        vpos            = ( mid[0]-(vw>>1), mid[1]+(vh))
+        surface.blit    ( txt, tpos)
+        surface.blit    ( val, vpos)
     
     def update(self):
         rango           = self.max - self.min
@@ -259,13 +263,13 @@ class Knob(Widget):
         super().__init__(Widget.KNOB, name, x, y, width, height, min, value, max)
         
     def render( self, app ):
-        super().render( app )
         pygame.draw.circle( app.screen, (255,255,0), (self.rect[0]+(self.rect[2]//2),self.rect[1]+(self.rect[3]//2)), self.rect[2]/2, 2)
         width, height = app.resources.knob.get_size()
         width //= 24        
         factor = self.value / self.max
         frame  = factor * 24
         app.screen.blit( app.resources.knob, (self.knob.x, self.knob.y), area=(frame*96, 0, width, height))
+        super().render( app )
 
 class JogWheel(Widget):
     def __init__(self, name="UnnamedJogWheel", x=0, y=0, width=224, height=224, min=0, value=0, max=255):
@@ -290,7 +294,7 @@ class Slider(Widget):
             if self.touches(event):
                 self.drag = True
                 self.last = event.pos[0]
-                if not self.touchesKnob(event.pos):
+                if not self.touchesKnob(event):
                     delta  = (event.pos[0] - self.rect.x) / (self.rect.width - self.knob.width)
                     self.value  = self.min + delta * (self.max - self.min)
                     self.update()
@@ -309,6 +313,12 @@ class Slider(Widget):
             return True
         return False
     
+    def update(self):
+        rango           = self.max - self.min
+        delta           = (self.value - self.min) / rango if rango != 0 else 0
+        self.knob.x     = self.rect.x + int(delta * (self.rect.width - self.knob.width))
+        self.knob.y     = self.y
+        
     def render(self, app):
         super().render(app)
         app.screen.blit( app.resources.slider, (self.knob.x, self.knob.y-6))
@@ -317,18 +327,52 @@ class Slider(Widget):
 class Fader(Widget):
     def __init__(self, name="UnnamedFader", x=0, y=0, width=32, height=200, min=0, value=0, max=255):
         super().__init__(Widget.FADER, name, x, y, width, height, min, value, max)
+        self.knob = pygame.Rect(self.x,self.y,85,48)
+        self.update()
+                
+    def handle(self, event, app):
+        if self.mouseDown(event):        
+            if self.touches(event):
+                self.drag = True
+                self.last = event.pos[1]
+                if not self.touchesKnob(event):
+                    delta  = (event.pos[1] - self.rect.y) / (self.rect.height - (self.knob.height/3))
+                    self.value  = self.max - delta * (self.max - self.min)
+                    if self.value < self.min: self.value = self.min
+                    if self.value > self.max: self.value = self.max
+                    self.update()
+                return True
+        elif self.mouseUp(event): self.drag = False
+        elif self.mouseMove(event) and self.drag:
+            y_actual    = event.pos[1]
+            delta_y     = y_actual - self.last
+            self.last   = y_actual            
+            factor      = 0.1 if app.pygame.key.get_mods() & app.pygame.KMOD_SHIFT else 1.0                
+            units       = (self.max - self.min) / (self.rect.height - self.knob.height)
+            self.value -= delta_y * units * factor
+            if self.value < self.min: self.value = self.min
+            if self.value > self.max: self.value = self.max
+            self.update()
+            return True
+        return False
+    
+    def update(self):
+        rango           = self.max - self.min
+        delta           = (self.value - self.min) / rango if rango != 0 else 0
+        self.knob.x     = self.x
+        self.knob.y     = self.rect.y + (self.rect.height - self.knob.height) - int(delta * (self.rect.height - self.knob.height))
         
     def render(self, app):
         super().render(app)
-        app.screen.blit( app.resources.fader, (self.knob.x, self.knob.y))                        
+        app.screen.blit( app.resources.fader, (self.knob.x, self.knob.y))  
 
 class Button(Widget):
     def __init__(self, name="UnnamedButton", x=0, y=0, width=128, height=56, min=0, value=0, max=1):
         super().__init__(Widget.BUTTON, name, x, y, width, height, min, value, max)
         
     def render(self, app):
-        super().render(app)
-        pygame.draw.rect( app.screen, (255,255,0), self.rect, 3, border_radius=10)
+        # super().render(app)
+        pygame.draw.rect( app.screen, (255,255,0), self.rect, 1, border_radius=10)
 
 class Pad(Widget):
     def __init__(self, name="UnnamedPad", x=0, y=0, width=96, height=96, min=0, value=0, max=1):
@@ -353,7 +397,7 @@ class Led(Widget):
         pass
         
     def render( self, app ):
-        super().render( app )
+        #super().render( app )
         self.update()
         pygame.draw.circle( app.screen, (255,255,0), (self.rect[0]+(self.rect[2]//2),self.rect[1]+(self.rect[3]//2)), self.rect[2]/2, 2)
         geometry = LedTypes.geometry[ (self.kind * 4)+self.value ]
