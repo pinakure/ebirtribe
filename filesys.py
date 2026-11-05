@@ -304,7 +304,7 @@ def obtener_nombre_fichero(titulo="Seleccionar archivo", tipos_archivo=None):
 def loadImage(app, ruta_relativa):
     file = path(ruta_relativa)
     if not file or not os.path.exists(file): 
-        print(f"[CRITICAL] Required image resource not found: {e}")
+        print(f"[CRITICAL] Required image resource not found: {file}")
         exit(1)        
     try:
         return app.pygame.image.load(file).convert_alpha()            

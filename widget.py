@@ -261,16 +261,104 @@ class Knob(Widget):
     
     def __init__(self, name="UnnamedKnob", x=0, y=0, width=96, height=96, min=0, value=0, max=255):
         super().__init__(Widget.KNOB, name, x, y, width, height, min, value, max)
+        self.knob = pygame.Rect(self.x, self.y, 96, 96)
         
-    def render( self, app ):
-        pygame.draw.circle( app.screen, (255,255,0), (self.rect[0]+(self.rect[2]//2),self.rect[1]+(self.rect[3]//2)), self.rect[2]/2, 2)
-        width, height = app.resources.knob.get_size()
-        width //= 24        
-        factor = self.value / self.max
-        frame  = factor * 24
-        app.screen.blit( app.resources.knob, (self.knob.x, self.knob.y), area=(frame*96, 0, width, height))
-        super().render( app )
+        # Rotado 90° adicionales en sentido horario (112.5° + 90° = 202.5°)
+        # Mantiene el arco de 315° de recorrido útil
+        self.ANGULO_MIN = 202.5  
+        self.ANGULO_MAX = 517.5 
+        self.update()
+        
+    def handle(self, event, app):
+        if self.mouseDown(event):        
+            if self.touches(event):
+                self.drag = True
+                self.last = event.pos[1]  # Guardamos solo el componente Y (entero)
+                return True
+        elif self.mouseUp(event): 
+            self.drag = False
+        elif self.mouseMove(event) and self.drag:
+            y_actual    = event.pos[1]   # Extraemos solo el componente Y (entero)
+            delta_y     = y_actual - self.last
+            self.last   = y_actual            
+            
+            factor      = 0.1 if app.pygame.key.get_mods() & app.pygame.KMOD_SHIFT else 1.0
+            pixels_sensibilidad = 200.0 
+            units       = (self.max - self.min) / pixels_sensibilidad
+            
+            self.value -= delta_y * units * factor
+            if self.value < self.min: self.value = self.min
+            if self.value > self.max: self.value = self.max
+            self.update()
+            return True
+        return False
+        
+    def update(self):
+        self.knob.x = self.x
+        self.knob.y = self.y
 
+    def render(self, app):
+        # 1. Mapear el valor actual al arco físico del potenciómetro
+        rango_valores = self.max - self.min
+        factor = (self.value - self.min) / rango_valores if rango_valores != 0 else 0
+        angulo_físico = self.ANGULO_MIN + factor * (self.ANGULO_MAX - self.ANGULO_MIN)
+        
+        # Normalizamos a un rango circular de 0 a 360 grados
+        angulo_normalizado = angulo_físico % 360.0
+        grados_por_frame = 15.0  # (360 / 24)
+        
+        # 2. Calcular índices de frames y ponderación para el cross-fade
+        posicion_exacta_frame = angulo_normalizado / grados_por_frame
+        indice_frame_actual = int(posicion_exacta_frame) % 24
+        indice_frame_siguiente = (indice_frame_actual + 1) % 24
+        
+        # Fracción decimal que indica qué tan cerca estamos del siguiente frame (0.0 a 1.0)
+        fraccion_siguiente = posicion_exacta_frame - int(posicion_exacta_frame)
+        
+        # Opacidad del frame que entra (0 a 255)
+        alpha_siguiente = int(fraccion_siguiente * 255)
+        
+        # La rotación fina por software
+        rotacion_fina = angulo_normalizado % grados_por_frame
+        
+        # 3. Extraer y procesar los dos sub-sprites independientes
+        # --- FRAME ACTUAL (Base 100% Opaca) ---
+        surface_actual = pygame.Surface((96, 96), pygame.SRCALPHA)
+        surface_actual.blit(app.resources.knob, (0, 0), area=(indice_frame_actual * 96, 0, 96, 96))
+        # Mantenemos este frame al máximo de opacidad para que sirva de base sólida
+        
+        # --- FRAME SIGUIENTE + PRE-ROTACIÓN (Capas con Alpha Dinámico) ---
+        raw_siguiente = pygame.Surface((96, 96), pygame.SRCALPHA)
+        raw_siguiente.blit(app.resources.knob, (0, 0), area=(indice_frame_siguiente * 96, 0, 96, 96))
+        
+        # Pre-rotamos el frame siguiente 15° hacia atrás para alinearlo algebraicamente
+        surface_siguiente_rotada = pygame.transform.rotate(raw_siguiente, grados_por_frame)
+        
+        surface_siguiente = pygame.Surface((96, 96), pygame.SRCALPHA)
+        rect_siguiente = surface_siguiente_rotada.get_rect()
+        rect_siguiente.center = (48, 48)
+        surface_siguiente.blit(surface_siguiente_rotada, rect_siguiente.topleft)
+        # Aplicamos la transparencia únicamente al cuadro que se va superponiendo
+        surface_siguiente.set_alpha(alpha_siguiente)
+        
+        # 4. Combinar ambos sub-sprites manteniendo la solidez del pixel base
+        combined_surface = pygame.Surface((96, 96), pygame.SRCALPHA)
+        combined_surface.blit(surface_actual, (0, 0))     # Base sólida
+        combined_surface.blit(surface_siguiente, (0, 0))  # Capa superior interpolada
+        
+        # 5. Aplicar la rotación fina definitiva sobre el resultado combinado opaco
+        rotated_surface = pygame.transform.rotate(combined_surface, -rotacion_fina)
+        new_rect = rotated_surface.get_rect()
+        
+        # Centrar dinámicamente en pantalla para evitar oscilaciones
+        new_rect.center = (self.x + 48, self.y + 48)
+        
+        # 6. Dibujar en la pantalla
+        app.screen.blit(rotated_surface, new_rect.topleft)
+        
+        # 7. Renderizar textos superiores/inferiores de la clase base
+        super().render(app)
+    
 class JogWheel(Widget):
     def __init__(self, name="UnnamedJogWheel", x=0, y=0, width=224, height=224, min=0, value=0, max=255):
         super().__init__(Widget.JOG_WHEEL, name, x, y, width, height, min, value, max)
@@ -283,7 +371,6 @@ class JogWheel(Widget):
         factor = self.value / self.max
         frame  = factor * 24
         app.screen.blit( app.resources.jog_wheel, (self.x, self.y))
-
 
 class Slider(Widget):
     def __init__(self, name="UnnamedSlider", x=0, y=0, width=200, height=20, min=0, value=0, max=255):
@@ -322,7 +409,6 @@ class Slider(Widget):
     def render(self, app):
         super().render(app)
         app.screen.blit( app.resources.slider, (self.knob.x, self.knob.y-6))
-                     
 
 class Fader(Widget):
     def __init__(self, name="UnnamedFader", x=0, y=0, width=32, height=200, min=0, value=0, max=255):
@@ -367,12 +453,22 @@ class Fader(Widget):
         app.screen.blit( app.resources.fader, (self.knob.x, self.knob.y))  
 
 class Button(Widget):
-    def __init__(self, name="UnnamedButton", x=0, y=0, width=128, height=56, min=0, value=0, max=1):
-        super().__init__(Widget.BUTTON, name, x, y, width, height, min, value, max)
+    def __init__(self, name="UnnamedButton", x=0, y=0, width=128, height=56, gfx_pos=(0,0), value=0, gfx_size=(96,64)):
+        super().__init__(Widget.BUTTON, name, x, y, width, height, 0, value, 1)
+        self.gfx_pos    = gfx_pos
+        self.gfx_size   = gfx_size
+        self.knob       = None
+        self.middle     = (self.x+(self.rect.width//2), self.y+(self.rect.height//2))
+        self.position   = (self.middle[0] - (self.gfx_size[0]//2),self.middle[1] - (self.gfx_size[1]//2))
         
     def render(self, app):
-        # super().render(app)
-        pygame.draw.rect( app.screen, (255,255,0), self.rect, 1, border_radius=10)
+        # super().render(app)        
+        # pygame.draw.rect( app.screen, (255,255,0), self.rect, 1, border_radius=10)
+        if random.randint(0,10)==7:
+            self.value = True if random.randint(0,10)==7 else False
+        if self.value: 
+            app.screen.blit( app.resources.buttons, self.position, area=(*self.gfx_pos, *self.gfx_size))
+
 
 class Pad(Widget):
     def __init__(self, name="UnnamedPad", x=0, y=0, width=96, height=96, min=0, value=0, max=1):
@@ -399,14 +495,15 @@ class Led(Widget):
     def render( self, app ):
         #super().render( app )
         self.update()
-        pygame.draw.circle( app.screen, (255,255,0), (self.rect[0]+(self.rect[2]//2),self.rect[1]+(self.rect[3]//2)), self.rect[2]/2, 2)
+        #pygame.draw.circle( app.screen, (255,255,0), (self.rect[0]+(self.rect[2]//2),self.rect[1]+(self.rect[3]//2)), self.rect[2]/2, 2)
         geometry = LedTypes.geometry[ (self.kind * 4)+self.value ]
         app.screen.blit( app.resources.leds, (self.x, self.y), area=geometry)
 
 class Valve(Widget):
     def __init__(self, name="UnnamedValve", x=0, y=0, width=128, height=128, min=0.0, value=0.0, max=1.0):
         super().__init__(Widget.VALVE, name, x, y, width, height, min, float(value), max)
-        self.interactive = False
+        self.interactive    = False
+        self.knob           = None
         
     def render(self, app):
         super().render(app)
@@ -416,7 +513,7 @@ class Valve(Widget):
         if random.randint(0,32)==7:
             self.value = 1.0
         app.resources.valve.set_alpha(int(self.value*256))
-        app.screen.blit( app.resources.valve, (self.knob.x, self.knob.y), area=(0, 0, width/2, height))
+        app.screen.blit( app.resources.valve, (self.x, self.y), area=(0, 0, width, height))
 
 class Lcd(Widget):
     def __init__(self, name="UnnamedLcd", x=0, y=0, width=96, height=96, min=0, value=0, max=0):
