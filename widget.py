@@ -581,7 +581,6 @@ class Lcd(Widget):
         self.update()
         surface = app.screen
         font    = app.fonts.dot_m
-        font    = app.fonts.digital
         y       = font.offset
         for line in self.buffer:
             txt             = font.render(f"{line}", True, self.color)
