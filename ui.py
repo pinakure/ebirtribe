@@ -75,7 +75,7 @@ class UI:
         for k in vars(instance): setattr(instance, k, eval(f'interface.{class_name}.{k}')+offset)                        
         data        = instance.get()
         print(f'[ UI ] Loading {len(data)} {class_name} widgets...')
-        [ print(f'[ UI ] Initializing {class_name} widget {w.name}') for k,w in data.items()]
+        [ print(f'[ UI ] Initializing {class_name} widget {w.name} {hex(w.setUUID(k))}') for k,w in data.items()]
         return data
     
     def create():

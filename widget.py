@@ -228,7 +228,12 @@ class Widget:
         self.last           = 0
         self.knob           = pygame.Rect(0,0,15,16)
         self.rect           = pygame.Rect(x,y,width,height)
+        self.uuid           = 0x0000
         self.update()   
+    
+    def setUUID(self, uuid):
+        self.uuid = uuid
+        return uuid
         
     def mouseDown   (self, event): return event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
     def mouseUp     (self, event): return event.type == pygame.MOUSEBUTTONUP   and event.button == 1

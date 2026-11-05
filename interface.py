@@ -94,54 +94,54 @@ class Buttons:
         }
 
 class Pads:
-    PATTERN_PATTERN     = 0x00 # pad
-    PATTERN_SONG        = 0x01 # pad
-    PATTERN_ACCENT      = 0x02 # pad
-    PATTERN_SLIDE       = 0x03 # pad
-    TRANSPORT_STOP      = 0x04 # pad
-    TRANSPORT_PLAY      = 0x05 # pad
-    TRANSPORT_RECORD    = 0x06 # pad
-    PART_SELECT_01      = 0x07 # pad
-    PART_SELECT_02      = 0x08 # pad
-    PART_SELECT_03      = 0x09 # pad
-    PART_SELECT_04      = 0x0A # pad
-    PART_SELECT_05      = 0x0B # pad
-    PART_SELECT_06      = 0x0C # pad
-    PART_SELECT_07      = 0x0D # pad
-    PART_SELECT_08      = 0x0E # pad
-    PART_SELECT_09      = 0x0F # pad
-    PART_SELECT_10      = 0x10 # pad
-    PART_SELECT_11      = 0x11 # pad
-    PART_SELECT_12      = 0x12 # pad
-    PART_01             = 0x13 # pad
-    PART_02             = 0x14 # pad
-    PART_03             = 0x15 # pad
-    PART_04             = 0x16 # pad
-    PART_05             = 0x17 # pad
-    PART_06             = 0x18 # pad
-    PART_07             = 0x19 # pad
-    PART_08             = 0x1A # pad
-    PART_09             = 0x1B # pad
-    PART_10             = 0x1C # pad
-    PART_11             = 0x1D # pad
-    PART_12             = 0x1E # pad
-    PART_13             = 0x1F # pad
-    PART_14             = 0x20 # pad
-    PART_15             = 0x21 # pad
-    PART_16             = 0x22 # pad
-    AUX_SHIFT           = 0x23 # pad
-    AUX_PATTERN_SET     = 0x24 # pad
-    AUX_KEYBOARD        = 0x25 # pad
-    AUX_LAST_STEP       = 0x26 # pad
-    AUX_COPY            = 0x27 # pad
-    AUX_PASTE           = 0x28 # pad
-    AUX_SCALE           = 0x29 # pad
-    AUX_GROOVE          = 0x2A # pad
-    AUX_MOTION          = 0x2B # pad
-    AUX_DELAY           = 0x2C # pad
-    AUX_REVERB          = 0x2D # pad
-    AUX_FX_CHAIN        = 0x2E # pad
-    AUX_BPM_SYNC        = 0x2F # pad    
+    PATTERN_PATTERN     = 0x00
+    PATTERN_SONG        = 0x01
+    PATTERN_ACCENT      = 0x02
+    PATTERN_SLIDE       = 0x03
+    TRANSPORT_STOP      = 0x04
+    TRANSPORT_PLAY      = 0x05
+    TRANSPORT_RECORD    = 0x06
+    PART_SELECT_01      = 0x07
+    PART_SELECT_02      = 0x08
+    PART_SELECT_03      = 0x09
+    PART_SELECT_04      = 0x0A
+    PART_SELECT_05      = 0x0B
+    PART_SELECT_06      = 0x0C
+    PART_SELECT_07      = 0x0D
+    PART_SELECT_08      = 0x0E
+    PART_SELECT_09      = 0x0F
+    PART_SELECT_10      = 0x10
+    PART_SELECT_11      = 0x11
+    PART_SELECT_12      = 0x12
+    PART_01             = 0x13
+    PART_02             = 0x14
+    PART_03             = 0x15
+    PART_04             = 0x16
+    PART_05             = 0x17
+    PART_06             = 0x18
+    PART_07             = 0x19
+    PART_08             = 0x1A
+    PART_09             = 0x1B
+    PART_10             = 0x1C
+    PART_11             = 0x1D
+    PART_12             = 0x1E
+    PART_13             = 0x1F
+    PART_14             = 0x20
+    PART_15             = 0x21
+    PART_16             = 0x22
+    AUX_SHIFT           = 0x23
+    AUX_PATTERN_SET     = 0x24
+    AUX_KEYBOARD        = 0x25
+    AUX_LAST_STEP       = 0x26
+    AUX_COPY            = 0x27
+    AUX_PASTE           = 0x28
+    AUX_SCALE           = 0x29
+    AUX_GROOVE          = 0x2A
+    AUX_MOTION          = 0x2B
+    AUX_DELAY           = 0x2C
+    AUX_REVERB          = 0x2D
+    AUX_FX_CHAIN        = 0x2E
+    AUX_BPM_SYNC        = 0x2F
     def get():
         return {
             Pads.PATTERN_PATTERN  : Pad('PATTERN'     , 179, 478,  93,  49, (   0, 120), 0, (  96,  56)),
@@ -279,8 +279,9 @@ class CallBacks:
     
     # Part / Keyboard
     def part(widget, event, app):
-        print(dir(widget))
-        return True
+        print(widget.name, hex(widget.uuid))
+        if widget.uuid == Pads.PART_01:
+            print("First Key pressed")
     
     # Auxiliary function selector
     def aux(widget, event, app):
@@ -296,13 +297,17 @@ class CallBacks:
     def tap(widget, event, app):
         print(dir(widget))
 
+CURRENT_SKIN    = 0
+DECK_SKINS      = [ 'deck-blue' , 'deck-red'        , 'deck-pink'       ]
+BUTTON_SKINS    = [ 'buttons'   , 'buttons-orange'  , 'buttons-orange'  ]
+
 RESOURCES = {
-    'deck'      : 'resources/deck.png',
+    'deck'      : f'resources/{DECK_SKINS[ CURRENT_SKIN ]}.png',
     'knob'      : 'resources/knob.png',
     'fader'     : 'resources/fader.png',
     'slider'    : 'resources/slider.png',
     'leds'      : 'resources/leds.png',
-    'buttons'   : 'resources/buttons.png',
+    'buttons'   :  f'resources/{BUTTON_SKINS[ CURRENT_SKIN ]}.png',
     'jog_wheel' : 'resources/jog_wheel.png',
     'valve'     : 'resources/valve.png',
 }
@@ -351,23 +356,7 @@ JUMP_TABLE = {
     Pads.PART_SELECT_09         : CallBacks.select_part,
     Pads.PART_SELECT_10         : CallBacks.select_part,
     Pads.PART_SELECT_11         : CallBacks.select_part,
-    Pads.PART_SELECT_12         : CallBacks.select_part,
-    Pads.PART_01                : CallBacks.part,
-    Pads.PART_02                : CallBacks.part,
-    Pads.PART_03                : CallBacks.part,
-    Pads.PART_04                : CallBacks.part,
-    Pads.PART_05                : CallBacks.part,
-    Pads.PART_06                : CallBacks.part,
-    Pads.PART_07                : CallBacks.part,
-    Pads.PART_08                : CallBacks.part,
-    Pads.PART_09                : CallBacks.part,
-    Pads.PART_10                : CallBacks.part,
-    Pads.PART_11                : CallBacks.part,
-    Pads.PART_12                : CallBacks.part,
-    Pads.PART_13                : CallBacks.part,
-    Pads.PART_14                : CallBacks.part,
-    Pads.PART_15                : CallBacks.part,
-    Pads.PART_16                : CallBacks.part,
+    Pads.PART_SELECT_12         : CallBacks.select_part,    
     Pads.AUX_SHIFT              : CallBacks.aux,
     Pads.AUX_PATTERN_SET        : CallBacks.aux,
     Pads.AUX_KEYBOARD           : CallBacks.aux,
