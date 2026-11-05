@@ -550,15 +550,238 @@ class Lcd(Widget):
         self.skin           = skin
         self.color          = (255,128,0)
         self.buffer         = ["" for _ in range(rows)]
+        self._demo_started  = pygame.time.get_ticks()
+        self._demo_frame    = 0
         super().__init__(Widget.LCD, name, x, y, width, height, 0, 0, 0)
         self.interactive    = False
+        self.demo()
 
     def demo(self):
-        self.buffer[0]      = "Hello World!"
-        self.buffer[1]      = "0123456789ABCDEF"
-        self.buffer[2]      = "0123456789ABCDEF"
-        self.buffer[3]      = "0123456789ABCDEF"
-        self.buffer[4]      = "0123456789ABCDEF0123456789ABCDEF"
+        """Animated mixed-density LCD demoscene. Each row independently uses 1x or 2x density."""
+        import math
+
+        now = pygame.time.get_ticks()
+        t = (now - self._demo_started) / 1000.0
+        frame = int(t * 12)
+        self._demo_frame = frame
+
+        # self.columns is immutable logical geometry: rows may contain columns
+        # dotim5 glyphs or columns*2 dotim3 glyphs.
+        narrow_width = max(1, self.columns)
+        dense_width = narrow_width * 2
+        rows = self.rows
+
+        def fit(value, limit=narrow_width):
+            return str(value)[:limit].ljust(limit)
+
+        def centered(value, limit=narrow_width):
+            value = str(value)[:limit]
+            return fit(value.center(limit), limit)
+
+        def scroll(message, offset, limit=narrow_width):
+            message = (" " * limit) + str(message) + (" " * limit)
+            pos = int(offset) % len(message)
+            return fit((message + message)[pos:pos + limit], limit)
+
+        def make_lines(lines):
+            return (lines + [""] * rows)[:rows]
+
+        def canvas(fill=" "):
+            return [[fill for _ in range(dense_width)] for _ in range(rows)]
+
+        def put(grid, x, y, char):
+            if 0 <= x < dense_width and 0 <= y < rows:
+                grid[y][x] = char
+
+        def draw_line(grid, x0, y0, x1, y1, char="#"):
+            # Integer Bresenham line drawing, clipped by put().
+            dx, sx = abs(x1 - x0), 1 if x0 < x1 else -1
+            dy, sy = -abs(y1 - y0), 1 if y0 < y1 else -1
+            err = dx + dy
+            while True:
+                put(grid, x0, y0, char)
+                if x0 == x1 and y0 == y1:
+                    break
+                e2 = 2 * err
+                if e2 >= dy:
+                    err += dy
+                    x0 += sx
+                if e2 <= dx:
+                    err += dx
+                    y0 += sy
+
+        def grid_lines(grid):
+            return ["".join(row) for row in grid]
+
+        def circle_scene():
+            grid = canvas()
+            # A moving, breathing character circle.
+            radius_x = max(2.0, dense_width * (0.13 + 0.025 * math.sin(t * 2.0)))
+            radius_y = max(1.0, rows * 0.34)
+            travel = max(0.0, dense_width - 2 * radius_x - 2)
+            cx = radius_x + 1 + (travel * (0.5 + 0.5 * math.sin(t * 1.35)))
+            cy = (rows - 1) / 2 + 0.35 * math.sin(t * 2.1)
+            for deg in range(360):
+                a = math.radians(deg)
+                px = int(round(cx + radius_x * math.cos(a)))
+                py = int(round(cy + radius_y * math.sin(a)))
+                put(grid, px, py, "@" if deg % 30 < 3 else "o")
+            put(grid, int(round(cx)), int(round(cy)), "*")
+            return grid_lines(grid)
+
+        def cube_scene():
+            grid = canvas()
+            # Eight 3-D vertices, rotated around all three axes and projected.
+            vertices = []
+            ax, ay, az = t * 0.9, t * 1.15, t * 0.65
+            for z in (-1, 1):
+                for y in (-1, 1):
+                    for x in (-1, 1):
+                        xx, yy, zz = x, y, z
+                        yy, zz = yy * math.cos(ax) - zz * math.sin(ax), yy * math.sin(ax) + zz * math.cos(ax)
+                        xx, zz = xx * math.cos(ay) + zz * math.sin(ay), -xx * math.sin(ay) + zz * math.cos(ay)
+                        xx, yy = xx * math.cos(az) - yy * math.sin(az), xx * math.sin(az) + yy * math.cos(az)
+                        depth = zz + 4.0
+                        scale = min(dense_width * 0.30, rows * 1.2)
+                        px = int(round(dense_width / 2 + xx * scale / depth * 2.2))
+                        py = int(round((rows - 1) / 2 + yy * scale / depth * 1.15))
+                        vertices.append((px, py))
+            edges = [(0,1),(0,2),(0,4),(1,3),(1,5),(2,3),(2,6),(3,7),(4,5),(4,6),(5,7),(6,7)]
+            for a, b in edges:
+                draw_line(grid, *vertices[a], *vertices[b], "#")
+            for x, y in vertices:
+                put(grid, x, y, "o")
+            return grid_lines(grid)
+
+        def image_scene():
+            # A tiny shaded landscape rendered entirely from printable characters.
+            grid = canvas()
+            horizon = max(1, rows // 2)
+            for y in range(rows):
+                for x in range(dense_width):
+                    nx = (x - (dense_width - 1) / 2) / max(1, dense_width / 2)
+                    if y < horizon:
+                        # Sun disk and a sparse, dithered sky.
+                        sun_y = max(0, horizon - 1)
+                        dist = math.sqrt((nx * 1.45) ** 2 + ((y - sun_y) * 0.9) ** 2)
+                        if dist < 0.43:
+                            ch = "@"
+                        elif dist < 0.62:
+                            ch = "o"
+                        else:
+                            ch = "." if (x * 7 + y * 11) % 13 == 0 else " "
+                    else:
+                        # Two mountain ridges, then a striped foreground.
+                        ridge1 = horizon + int(abs(math.sin(x * 0.22)) * max(1, rows * 0.30))
+                        ridge2 = horizon + int(abs(math.sin(x * 0.13 + 1.4)) * max(1, rows * 0.25))
+                        if y == ridge1 or y == ridge2:
+                            ch = "^"
+                        elif y > max(ridge1, ridge2):
+                            ch = ":" if (x + y) % 3 else ";"
+                        else:
+                            ch = " "
+                    grid[y][x] = ch
+            return grid_lines(grid)
+
+        def starfield_scene():
+            grid = canvas()
+            # Perspective stars stream out from a central vanishing point.
+            cx, cy = (dense_width - 1) / 2, (rows - 1) / 2
+            for i in range(max(18, dense_width * 2)):
+                seed = i * 2.399963229728653
+                angle = seed
+                speed = 0.12 + (i % 7) * 0.035
+                distance = ((i * 17.37 + t * speed * 13) % 100) / 100.0
+                spread = distance * max(dense_width, rows * 2)
+                px = int(round(cx + math.cos(angle) * spread))
+                py = int(round(cy + math.sin(angle) * spread * 0.42))
+                char = "." if distance < 0.35 else ("+" if distance < 0.72 else "*")
+                put(grid, px, py, char)
+            put(grid, int(cx), int(cy), "+")
+            return grid_lines(grid)
+
+        scene = int(t // 7) % 9
+        phase = t % 7
+
+        if scene == 0:
+            self.buffer = make_lines([
+                centered("SYSTEMS ONLINE"),
+                centered("--------[ LUSH ]--------", dense_width),
+                scroll(">>> DOT MATRIX DISPLAY ENGINE <<<", frame // 2, dense_width),
+                centered("EMX-1 / READY"),
+                centered("16 / 32 CHAR DENSITY", dense_width),
+            ])
+        elif scene == 1:
+            pulse = int((1 + math.sin(t * 5)) * (dense_width - 2) / 2)
+            bar = "[" + "#" * pulse + "." * (dense_width - 2 - pulse) + "]"
+            self.buffer = make_lines([
+                centered("SIGNAL TEST"),
+                fit("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", dense_width),
+                fit("0123456789ABCDEF", narrow_width),
+                centered(bar, dense_width),
+                scroll("LETTERS / NUMBERS / PIXELS / DOT MATRIX", frame, dense_width),
+            ])
+        elif scene == 2:
+            self.buffer = make_lines([
+                centered("PIXEL POWER"),
+                centered("SCROLLING TEXT GENERATOR", dense_width),
+                scroll("WELCOME TO THE LCD DEMOSCENE - DOUBLE DENSITY TEXT", frame * 2, dense_width),
+                scroll("RETRO HARDWARE / DIGITAL DREAMS / AMBER LIGHT", -frame, dense_width),
+                centered(">>> ALL SYSTEMS GO <<<"),
+            ])
+        elif scene == 3:
+            bars = []
+            for x in range(dense_width):
+                level = int((math.sin(x * 0.72 + t * 4) + math.sin(x * 0.31 - t * 2) + 2) * 2)
+                bars.append(" .:-=+*#@"[min(8, level)])
+            wave = "".join(bars)
+            self.buffer = make_lines([
+                centered("AUDIO VISUALIZER"),
+                wave,
+                wave[dense_width // 3:] + wave[:dense_width // 3],
+                centered("LOW / MID / HIGH / MASTER", dense_width),
+                scroll("FREQUENCY / ENERGY / RHYTHM", frame, dense_width),
+            ])
+        elif scene == 4:
+            self.buffer = make_lines([
+                centered("ORBITAL MOTION"),
+                *circle_scene(),
+                centered("CHARACTER CIRCLE", dense_width),
+                scroll("ROTATING / BOUNCING / OSCILLATING", frame, dense_width),
+            ])
+        elif scene == 5:
+            self.buffer = make_lines([
+                centered("3D VECTOR CUBE"),
+                *cube_scene(),
+                centered("REALTIME ROTATION", dense_width),
+                scroll("X AXIS / Y AXIS / Z AXIS", frame, dense_width),
+            ])
+        elif scene == 6:
+            self.buffer = make_lines([
+                centered("CHARACTER ART"),
+                *image_scene(),
+                centered("A TINY ASCII LANDSCAPE", dense_width),
+            ])
+        elif scene == 7:
+            self.buffer = make_lines([
+                centered("STARFIELD FLIGHT"),
+                *starfield_scene(),
+                centered("INFINITE SPACE", dense_width),
+                scroll("ENGAGE HYPERSPACE >>>>>>>>>>>", frame * 2, dense_width),
+            ])
+        else:
+            credits = ["CODE: LCD CLASS", "GFX: DOT MATRIX", "MUSIC: 8-BIT", "THANK YOU FOR WATCHING"]
+            index = int(phase / 1.75) % len(credits)
+            self.buffer = make_lines([
+                centered("A SMALL DISPLAY PRODUCTION"),
+                centered("P R E S E N T S", dense_width),
+                centered(credits[index]),
+                scroll("SEE YOU NEXT FRAME - REWINDING SHOWCASE", frame, dense_width),
+                centered("*** END OF TRANSMISSION ***", dense_width),
+            ])
+
+        glow = 0.82 + 0.18 * math.sin(t * 2.2)
+        self.color = (255, int(112 + 28 * glow), int(8 + 8 * glow))
 
     def update(self):
         self.demo()
