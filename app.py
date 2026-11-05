@@ -1,18 +1,6 @@
-from    ui          import UI
+from    ui          import UI, Fonts
 from    filesys     import FileMan
 from    emx         import EMXPlayer
-
-class FontCache:
-    lcd         = None
-    display     = None 
-    ocr         = None
-    heading     = None
-    monospace   = None
-    tiny        = None
-    pbb         = None
-    pb          = None
-    combi       = None
-    m4g         = None
 
 class App:
     name        = "LUSH EbirTribE EMX-1"
@@ -20,7 +8,6 @@ class App:
     description = "Music Production Workstation"
     width       = 1497
     height      = 955
-    fonts       = FontCache
     backdrop    = None
     clock       = None
     drag        = False

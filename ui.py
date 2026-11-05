@@ -6,6 +6,21 @@ import  os
 import  filesys
 from    widget          import LedTypes,Widget
 
+class Fonts:
+    ocr         = None 
+    dot_xs      = None
+    dot_m       = None
+    dot_l       = None
+    dot_xl      = None
+    segments    = None
+    digital     = None
+    tiny        = None
+    m4g         = None
+
+class Font(pygame.font.Font):
+    def __init__(self, filename, size=8, offset=0):
+        super().__init__(filename, size)
+        self.offset = offset
 
 class ResourceContainer:
     pass
@@ -19,7 +34,8 @@ class UI:
     def init( app, archivo_entrada ):
         pygame          .init()
         pygame          .font.init()
-        UI.app          = app        
+        UI.app          = app      
+        app.fonts       = Fonts  
         app.screen      = pygame.display.set_mode(( app.width, app.height ), pygame.NOFRAME)
         pygame          .display.set_caption(f"{ app.name } - { archivo_entrada.split(os.path.sep)[-1] if archivo_entrada is not None else ''}")
         app.resources   = UI.loadResources( app )
@@ -42,14 +58,26 @@ class UI:
         return resources
         
     def loadFonts( app ):
-        app.fonts.ocr       = pygame.font.Font(filesys.path("resources/fonts/ocr.ttf"   ), 22)
-        app.fonts.lcd       = pygame.font.Font(filesys.path("resources/fonts/lcd.ttf"   ), 24)
-        app.fonts.pbb       = pygame.font.Font(filesys.path("resources/fonts/pbb.otf"   ), 16)
-        app.fonts.pb        = pygame.font.Font(filesys.path("resources/fonts/pb.otf"    ), 16)
-        app.fonts.combi     = pygame.font.Font(filesys.path("resources/fonts/combi.otf" ), 16)
-        app.fonts.tiny      = pygame.font.Font(filesys.path("resources/fonts/combi.otf" ),  8)
-        app.fonts.m4g       = pygame.font.Font(filesys.path("resources/fonts/m4g.ttf"   ), 16)
+        app.fonts.ocr       = Font(filesys.path("resources/fonts/ocr.ttf"   ), 36)
+        app.fonts.dot_xs    = Font(filesys.path("resources/fonts/dotim3.ttf"), 28)
+        app.fonts.dot_m     = Font(filesys.path("resources/fonts/dotim5.ttf"), 37)
+        app.fonts.dot_l     = Font(filesys.path("resources/fonts/dotim7.ttf"), 28)
+        app.fonts.dot_xl    = Font(filesys.path("resources/fonts/dotted.ttf"), 26)
+        app.fonts.segments  = Font(filesys.path("resources/fonts/lcd.ttf"   ), 24)
+        app.fonts.digital   = Font(filesys.path("resources/fonts/graph.ttf" ), 13)
+        app.fonts.tiny      = Font(filesys.path("resources/fonts/graph.ttf" ),  8)
+        app.fonts.m4g       = Font(filesys.path("resources/fonts/m4g.ttf"   ), 22)
         app.fonts.monospace = pygame.font.SysFont("Consolas", 16)
+        
+        app.fonts.ocr       .offset = -2
+        app.fonts.dot_xs    .offset = +3
+        app.fonts.dot_m     .offset = -1
+        app.fonts.dot_l     .offset = +3
+        app.fonts.dot_xl    .offset = +4
+        app.fonts.segments  .offset = +6
+        app.fonts.digital   .offset = +9
+        app.fonts.tiny      .offset = 0
+        app.fonts.m4g       .offset = 4
         
     def splash(app):
         app.screen.fill((20, 20, 25))

@@ -1,5 +1,43 @@
 from widget     import Knob, Slider, Fader, Button, Pad, Led, Valve, Lcd, Vumeter, JogWheel, LedTypes
 
+class EffectHandler:
+    # TODO: move to emx module
+    COMPRESSOR      = 0x00     
+    DELAY           = 0x01 
+    DISTORTION      = 0x02     
+    EQUALIZER       = 0x03     
+    FILTER          = 0x04 
+    PITCH           = 0x05 
+    REVERB          = 0x06 
+    RING_MOD        = 0x07
+    
+    active_effect   = 0x00
+    
+    def selectEffect( effect ):
+        EffectHandler.active_effect = effect
+
+class MenuHandler:
+    # TODO: move to emx module
+    menu    = False
+    exit    = False
+    enter   = False
+    f1      = False
+    f2      = False
+    f3      = False
+    
+    def update():
+        
+        # Do stuff 
+        
+        # Restore switches
+        MenuHandler.menu    = False
+        MenuHandler.exit    = False
+        MenuHandler.enter   = False
+        MenuHandler.f1      = False
+        MenuHandler.f2      = False
+        MenuHandler.f3      = False
+            
+
 class Leds:
     STEP_01             = 0x00
     STEP_02             = 0x01
@@ -74,23 +112,23 @@ class Buttons:
       
     def get():
         return {
-            Buttons.FUNCTION_MENU    : Button('MENU'        ,  44, 367,  84,  49, (   0,   0), 0, (  88,  56)),
-            Buttons.FUNCTION_F1      : Button('F1'          , 142, 367,  68,  49, ( 256,   0), 0, (  72,  56)),
-            Buttons.FUNCTION_F2      : Button('F2'          , 220, 367,  66,  49, ( 328,   0), 0, (  72,  56)),
-            Buttons.FUNCTION_F3      : Button('F3'          , 297, 367,  65,  49, ( 400,   0), 0, (  64,  56)),
-            Buttons.FUNCTION_ENTER   : Button('ENTER'       , 461, 367,  84,  49, (  88,   0), 0, (  88,  56)),
-            Buttons.FUNCTION_EXIT    : Button('EXIT'        , 374, 367,  75,  49, ( 176,   0), 0, (  80,  56)),
-            Buttons.TRANSPORT_TAP    : Button('TAP'         , 628, 522,  83,  81, ( 720,   0), 0, (  88,  88)),
-            Buttons.FX_COMPRESSOR    : Button('COMPRESSOR'  , 743, 322,  66,  45, ( 192,  56), 0, (  64,  48)),
-            Buttons.FX_DISTORTION    : Button('DISTORTION'  , 814, 322,  63,  45, ( 256,  56), 0, (  64,  48)),
-            Buttons.FX_EQUALIZER     : Button('EQUALIZER'   , 880, 322,  63,  45, ( 192, 152), 0, (  64,  48)),
-            Buttons.FX_RING_MOD      : Button('RING_MOD'    , 947, 322,  63,  45, ( 256, 152), 0, (  64,  48)),
-            Buttons.FX_PITCH         : Button('PITCH'       , 743, 370,  66,  45, ( 192, 104), 0, (  64,  48)),
-            Buttons.FX_FILTER        : Button('FILTER'      , 814, 370,  63,  45, ( 256, 104), 0, (  64,  48)),
-            Buttons.FX_DELAY         : Button('DELAY'       , 880, 370,  63,  45, ( 192, 200), 0, (  64,  48)),
-            Buttons.FX_REVERB        : Button('REVERB'      , 947, 370,  63,  45, ( 256, 200), 0, (  64,  48)),
-            Buttons.PART_COMMON_MUTE : Button('COMMON_MUTE' ,1069, 334,  93,  57, (   0,  56), 0, (  96,  64)),
-            Buttons.PART_COMMON_SOLO : Button('COMMON_SOLO' ,1177, 334,  98,  57, (  96,  56), 0, (  96,  64)),            
+            Buttons.FUNCTION_MENU    : Button('MENU'        ,  44, 367,  84,  49, (   0,   0), 0, (  88,  56), CallBacks.menu       ),
+            Buttons.FUNCTION_F1      : Button('F1'          , 142, 367,  68,  49, ( 256,   0), 0, (  72,  56), CallBacks.menu       ),
+            Buttons.FUNCTION_F2      : Button('F2'          , 220, 367,  66,  49, ( 328,   0), 0, (  72,  56), CallBacks.menu       ),
+            Buttons.FUNCTION_F3      : Button('F3'          , 297, 367,  65,  49, ( 400,   0), 0, (  64,  56), CallBacks.menu       ),
+            Buttons.FUNCTION_ENTER   : Button('ENTER'       , 461, 367,  84,  49, (  88,   0), 0, (  88,  56), CallBacks.menu       ),
+            Buttons.FUNCTION_EXIT    : Button('EXIT'        , 374, 367,  75,  49, ( 176,   0), 0, (  80,  56), CallBacks.menu       ),
+            Buttons.TRANSPORT_TAP    : Button('TAP'         , 628, 522,  83,  81, ( 720,   0), 0, (  88,  88), CallBacks.tempo_tap  ),
+            Buttons.FX_COMPRESSOR    : Button('COMPRESSOR'  , 743, 322,  66,  45, ( 192,  56), 0, (  64,  48), CallBacks.effect     ),
+            Buttons.FX_DISTORTION    : Button('DISTORTION'  , 814, 322,  63,  45, ( 256,  56), 0, (  64,  48), CallBacks.effect     ),
+            Buttons.FX_EQUALIZER     : Button('EQUALIZER'   , 880, 322,  63,  45, ( 192, 152), 0, (  64,  48), CallBacks.effect     ),
+            Buttons.FX_RING_MOD      : Button('RING_MOD'    , 947, 322,  63,  45, ( 256, 152), 0, (  64,  48), CallBacks.effect     ),
+            Buttons.FX_PITCH         : Button('PITCH'       , 743, 370,  66,  45, ( 192, 104), 0, (  64,  48), CallBacks.effect     ),
+            Buttons.FX_FILTER        : Button('FILTER'      , 814, 370,  63,  45, ( 256, 104), 0, (  64,  48), CallBacks.effect     ),
+            Buttons.FX_DELAY         : Button('DELAY'       , 880, 370,  63,  45, ( 192, 200), 0, (  64,  48), CallBacks.effect     ),
+            Buttons.FX_REVERB        : Button('REVERB'      , 947, 370,  63,  45, ( 256, 200), 0, (  64,  48), CallBacks.effect     ),
+            Buttons.PART_COMMON_MUTE : Button('COMMON_MUTE' ,1069, 334,  93,  57, (   0,  56), 0, (  96,  64), CallBacks.mute       ),
+            Buttons.PART_COMMON_SOLO : Button('COMMON_SOLO' ,1177, 334,  98,  57, (  96,  56), 0, (  96,  64), CallBacks.solo       ),            
         }
 
 class Pads:
@@ -144,23 +182,25 @@ class Pads:
     AUX_BPM_SYNC        = 0x2F
     def get():
         return {
-            Pads.PATTERN_PATTERN  : Pad('PATTERN'     , 179, 478,  93,  49, (   0, 120), 0, (  96,  56)),
-            Pads.PATTERN_SONG     : Pad('SONG'        , 179, 535,  93,  45, (  96, 120), 0, (  96,  56)),
-            Pads.TRANSPORT_STOP   : Pad('STOP'        , 325, 522,  86,  81, ( 896,   0), 0, (  88,  88)),
-            Pads.TRANSPORT_PLAY   : Pad('PLAY'        , 421, 522,  96,  81, ( 984,   0), 0, (  96,  88)),
-            Pads.TRANSPORT_RECORD : Pad('RECORD'      , 528, 522,  89,  81, ( 808,   0), 0, (  88,  88)),
-            Pads.PART_SELECT_01   : Pad('SELECT_01'   , 753, 476,  62,  57, ( 464,   0), 0, (  64,  56)),
-            Pads.PART_SELECT_02   : Pad('SELECT_02'   , 820, 476,  62,  57, ( 528,   0), 0, (  64,  56)),
-            Pads.PART_SELECT_03   : Pad('SELECT_03'   , 888, 476,  61,  57, ( 592,   0), 0, (  64,  56)),
-            Pads.PART_SELECT_04   : Pad('SELECT_04'   , 953, 476,  62,  57, ( 656,   0), 0, (  64,  56)),
-            Pads.PART_SELECT_05   : Pad('SELECT_05'   ,1020, 476,  62,  57, ( 464,  64), 0, (  64,  56)),
-            Pads.PART_SELECT_06   : Pad('SELECT_06'   ,1087, 476,  62,  57, ( 528,  64), 0, (  64,  56)),
-            Pads.PART_SELECT_07   : Pad('SELECT_07'   , 753, 538,  62,  58, ( 592,  64), 0, (  64,  56)),
-            Pads.PART_SELECT_08   : Pad('SELECT_08'   , 820, 538,  62,  58, ( 656,  64), 0, (  64,  56)),
-            Pads.PART_SELECT_09   : Pad('SELECT_09'   , 888, 538,  61,  58, ( 464, 128), 0, (  64,  56)),
-            Pads.PART_SELECT_10   : Pad('SELECT_10'   , 953, 538,  62,  58, ( 528, 128), 0, (  64,  56)),
-            Pads.PART_SELECT_11   : Pad('SELECT_11'   ,1020, 538,  62,  58, ( 592, 128), 0, (  64,  56)),
-            Pads.PART_SELECT_12   : Pad('SELECT_12'   ,1087, 538,  62,  58, ( 656, 128), 0, (  64,  56)),
+            Pads.PATTERN_PATTERN  : Pad('PATTERN'     , 179, 478,  93,  49, (   0, 120), 1, (  96,  56), CallBacks.pattern_song),
+            Pads.PATTERN_SONG     : Pad('SONG'        , 179, 535,  93,  45, (  96, 120), 0, (  96,  56), CallBacks.pattern_song),
+            Pads.PATTERN_ACCENT   : Pad('ACCENT'      ,  60, 587,  98,  41, (  96, 176), 0, (  96,  48), CallBacks.accent),
+            Pads.PATTERN_SLIDE    : Pad('SLIDE'       , 179, 588,  92,  41, (   0, 176), 0, (  96,  48), CallBacks.slide),
+            Pads.TRANSPORT_STOP   : Pad('STOP'        , 325, 522,  86,  81, ( 896,   0), 0, (  88,  88), CallBacks.stop),
+            Pads.TRANSPORT_PLAY   : Pad('PLAY'        , 421, 522,  96,  81, ( 984,   0), 0, (  96,  88), CallBacks.play),
+            Pads.TRANSPORT_RECORD : Pad('RECORD'      , 528, 522,  89,  81, ( 808,   0), 0, (  88,  88), CallBacks.record),
+            Pads.PART_SELECT_01   : Pad('SELECT_01'   , 753, 476,  62,  57, ( 464,   0), 0, (  64,  56), CallBacks.select_part),
+            Pads.PART_SELECT_02   : Pad('SELECT_02'   , 820, 476,  62,  57, ( 528,   0), 0, (  64,  56), CallBacks.select_part),
+            Pads.PART_SELECT_03   : Pad('SELECT_03'   , 888, 476,  61,  57, ( 592,   0), 0, (  64,  56), CallBacks.select_part),
+            Pads.PART_SELECT_04   : Pad('SELECT_04'   , 953, 476,  62,  57, ( 656,   0), 0, (  64,  56), CallBacks.select_part),
+            Pads.PART_SELECT_05   : Pad('SELECT_05'   ,1020, 476,  62,  57, ( 464,  64), 0, (  64,  56), CallBacks.select_part),
+            Pads.PART_SELECT_06   : Pad('SELECT_06'   ,1087, 476,  62,  57, ( 528,  64), 0, (  64,  56), CallBacks.select_part),
+            Pads.PART_SELECT_07   : Pad('SELECT_07'   , 753, 538,  62,  58, ( 592,  64), 0, (  64,  56), CallBacks.select_part),
+            Pads.PART_SELECT_08   : Pad('SELECT_08'   , 820, 538,  62,  58, ( 656,  64), 0, (  64,  56), CallBacks.select_part),
+            Pads.PART_SELECT_09   : Pad('SELECT_09'   , 888, 538,  61,  58, ( 464, 128), 0, (  64,  56), CallBacks.select_part),
+            Pads.PART_SELECT_10   : Pad('SELECT_10'   , 953, 538,  62,  58, ( 528, 128), 0, (  64,  56), CallBacks.select_part),
+            Pads.PART_SELECT_11   : Pad('SELECT_11'   ,1020, 538,  62,  58, ( 592, 128), 0, (  64,  56), CallBacks.select_part),
+            Pads.PART_SELECT_12   : Pad('SELECT_12'   ,1087, 538,  62,  58, ( 656, 128), 0, (  64,  56), CallBacks.select_part),
             Pads.PART_01          : Pad('PART_01'     , 242, 720,  68,  89, ( 720,  88), 0, (  72,  96), CallBacks.part),
             Pads.PART_02          : Pad('PART_02'     , 317, 720,  68,  89, ( 720,  88), 0, (  72,  96), CallBacks.part),
             Pads.PART_03          : Pad('PART_03'     , 392, 720,  68,  89, ( 720,  88), 0, (  72,  96), CallBacks.part),
@@ -177,19 +217,19 @@ class Pads:
             Pads.PART_14          : Pad('PART_14'     ,1206, 720,  68,  89, ( 720,  88), 0, (  72,  96), CallBacks.part),
             Pads.PART_15          : Pad('PART_15'     ,1280, 720,  68,  89, ( 720,  88), 0, (  72,  96), CallBacks.part),
             Pads.PART_16          : Pad('PART_16'     ,1354, 720,  68,  89, ( 720,  88), 0, (  72,  96), CallBacks.part),
-            Pads.AUX_SHIFT        : Pad('SHIFT'       , 221, 851,  85,  64, ( 792,  88), 0, (  88,  72)),
-            Pads.AUX_PATTERN_SET  : Pad('PATTERN_SET' , 334, 851,  87,  64, ( 968,  88), 0, (  88,  72)),
-            Pads.AUX_KEYBOARD     : Pad('KEYBOARD'    , 436, 851,  86,  64, ( 880,  88), 0, (  88,  72)),
-            Pads.AUX_LAST_STEP    : Pad('LAST_STEP'   , 535, 851,  72,  64, ( 720, 184), 0, (  72,  72)),
-            Pads.AUX_COPY         : Pad('COPY'        , 627, 851,  72,  64, ( 792, 184), 0, (  72,  72)),
-            Pads.AUX_PASTE        : Pad('PASTE'       , 717, 850,  73,  64, ( 392, 184), 0, (  72,  64)),
-            Pads.AUX_SCALE        : Pad('SCALE'       , 809, 850,  72,  64, ( 320,  56), 0, (  72,  64)),
-            Pads.AUX_GROOVE       : Pad('GROOVE'      , 902, 850,  73,  64, ( 392,  56), 0, (  72,  64)),
-            Pads.AUX_MOTION       : Pad('MOTION'      , 994, 850,  72,  64, ( 320, 120), 0, (  72,  64)),
-            Pads.AUX_DELAY        : Pad('DELAY'       ,1087, 850,  67,  64, ( 464, 192), 0, (  64,  64)),
-            Pads.AUX_REVERB       : Pad('REVERB'      ,1173, 850,  74,  64, ( 392, 120), 0, (  72,  64)),
-            Pads.AUX_FX_CHAIN     : Pad('FX_CHAIN'    ,1263, 850,  83,  64, ( 528, 192), 0, (  80,  64)),
-            Pads.AUX_BPM_SYNC     : Pad('BPM_SYNC'    ,1362, 850,  74,  64, ( 320, 184), 0, (  72,  64)),
+            Pads.AUX_SHIFT        : Pad('SHIFT'       , 221, 851,  85,  64, ( 792,  88), 0, (  88,  72), CallBacks.aux),
+            Pads.AUX_PATTERN_SET  : Pad('PATTERN_SET' , 334, 851,  87,  64, ( 968,  88), 0, (  88,  72), CallBacks.aux),
+            Pads.AUX_KEYBOARD     : Pad('KEYBOARD'    , 436, 851,  86,  64, ( 880,  88), 0, (  88,  72), CallBacks.aux),
+            Pads.AUX_LAST_STEP    : Pad('LAST_STEP'   , 535, 851,  72,  64, ( 720, 184), 0, (  72,  72), CallBacks.aux),
+            Pads.AUX_COPY         : Pad('COPY'        , 627, 851,  72,  64, ( 792, 184), 0, (  72,  72), CallBacks.aux),
+            Pads.AUX_PASTE        : Pad('PASTE'       , 717, 850,  73,  64, ( 392, 184), 0, (  72,  64), CallBacks.aux),
+            Pads.AUX_SCALE        : Pad('SCALE'       , 809, 850,  72,  64, ( 320,  56), 0, (  72,  64), CallBacks.aux),
+            Pads.AUX_GROOVE       : Pad('GROOVE'      , 902, 850,  73,  64, ( 392,  56), 0, (  72,  64), CallBacks.aux),
+            Pads.AUX_MOTION       : Pad('MOTION'      , 994, 850,  72,  64, ( 320, 120), 0, (  72,  64), CallBacks.aux),
+            Pads.AUX_DELAY        : Pad('DELAY'       ,1087, 850,  67,  64, ( 464, 192), 0, (  64,  64), CallBacks.aux),
+            Pads.AUX_REVERB       : Pad('REVERB'      ,1173, 850,  74,  64, ( 392, 120), 0, (  72,  64), CallBacks.aux),
+            Pads.AUX_FX_CHAIN     : Pad('FX_CHAIN'    ,1263, 850,  83,  64, ( 528, 192), 0, (  80,  64), CallBacks.aux),
+            Pads.AUX_BPM_SYNC     : Pad('BPM_SYNC'    ,1362, 850,  74,  64, ( 320, 184), 0, (  72,  64), CallBacks.aux),
         }
 
 class Knobs:
@@ -264,6 +304,12 @@ class CallBacks:
     def level(widget, event, app):
         return True
     
+    def slide(widget, event, app):
+        return True
+    
+    def accent(widget, event, app):
+        return True
+    
     def panning(widget, event, app):
         return True
     
@@ -273,8 +319,49 @@ class CallBacks:
     def step_edit(widget, event, app):
         return True
     
+    def tempo_tap(widget, event, app):
+        return True
+    
+    def mute(widget, event, app):
+        return True
+    
+    def solo(widget, event, app):
+        return True
+    
+    # Effect Buttons Handler
+    def effect(widget, event, app):
+        effects = {
+            Buttons.FX_COMPRESSOR   : EffectHandler.COMPRESSOR,
+            Buttons.FX_DELAY        : EffectHandler.DELAY,
+            Buttons.FX_DISTORTION   : EffectHandler.DISTORTION,
+            Buttons.FX_EQUALIZER    : EffectHandler.EQUALIZER,
+            Buttons.FX_FILTER       : EffectHandler.FILTER,
+            Buttons.FX_PITCH        : EffectHandler.PITCH,
+            Buttons.FX_REVERB       : EffectHandler.REVERB,
+            Buttons.FX_RING_MOD     : EffectHandler.RING_MOD,
+        }
+        effect = effects.get(widget.uuid)
+        print(f"[ EFFECTS ] Selected effect {hex(effect)} {widget.name}")        
+        # not needed, buttons cannot stay lit unless pressed...
+        [ app.ui.widgets[k]._setValue(True if k == widget.uuid else False) for k in effects.keys() ]
+        EffectHandler.selectEffect( effect )        
+    
+    # Menu Buttons Handler
+    def menu(widget, event, app):
+        {
+            Buttons.FUNCTION_MENU   : MenuHandler.menu,
+            Buttons.FUNCTION_F1     : MenuHandler.f1,
+            Buttons.FUNCTION_F2     : MenuHandler.f2,
+            Buttons.FUNCTION_F3     : MenuHandler.f3,
+            Buttons.FUNCTION_ENTER  : MenuHandler.enter,
+            Buttons.FUNCTION_EXIT   : MenuHandler.exit,
+        }[widget.uuid]=True
+        MenuHandler.update()
+        
     # Part selector
     def select_part(widget, event, app):
+        # Selección exclusiva de botones
+        [ app.ui.widgets[k]._setValue(True if k == widget.uuid else False) for k in range(Pads.PART_SELECT_01, Pads.PART_SELECT_12+1) ]
         print(dir(widget))
     
     # Part / Keyboard
@@ -285,6 +372,12 @@ class CallBacks:
     
     # Auxiliary function selector
     def aux(widget, event, app):
+        [ app.ui.widgets[k]._setValue(True if k == widget.uuid else False) for k in range(Pads.AUX_SHIFT, Pads.AUX_BPM_SYNC+1) ]
+        print(dir(widget))
+    
+    # PATTERN-SONG Selector
+    def pattern_song(widget, event, app):
+        [ app.ui.widgets[k]._setValue(True if k == widget.uuid else False) for k in range(Pads.PATTERN_PATTERN, Pads.PATTERN_SONG+1) ]
         print(dir(widget))
     
     # Transport Functions
@@ -320,54 +413,5 @@ JUMP_TABLE = {
     Knobs.PART_COMMON_LEVEL     : CallBacks.level,
     Knobs.PART_COMMON_PANNING   : CallBacks.panning,
     Knobs.PATTERN               : CallBacks.pattern,
-    Knobs.STEP_EDIT             : CallBacks.step_edit,
-    Buttons.FUNCTION_MENU       : CallBacks.nop,
-    Buttons.FUNCTION_F1         : CallBacks.nop,
-    Buttons.FUNCTION_F2         : CallBacks.nop,
-    Buttons.FUNCTION_F3         : CallBacks.nop,
-    Buttons.FUNCTION_EXIT       : CallBacks.nop,
-    Buttons.FUNCTION_ENTER      : CallBacks.nop,
-    Pads.PATTERN_PATTERN        : CallBacks.nop,
-    Pads.PATTERN_SONG           : CallBacks.nop,
-    Pads.PATTERN_ACCENT         : CallBacks.nop,
-    Pads.PATTERN_SLIDE          : CallBacks.nop,
-    Pads.TRANSPORT_STOP         : CallBacks.stop,
-    Pads.TRANSPORT_PLAY         : CallBacks.play,
-    Pads.TRANSPORT_RECORD       : CallBacks.record,
-    Buttons.TRANSPORT_TAP       : CallBacks.tap,
-    Buttons.FX_COMPRESSOR       : CallBacks.nop,
-    Buttons.FX_DISTORTION       : CallBacks.nop,
-    Buttons.FX_EQUALIZER        : CallBacks.nop,
-    Buttons.FX_RING_MOD         : CallBacks.nop,
-    Buttons.FX_PITCH            : CallBacks.nop,
-    Buttons.FX_FILTER           : CallBacks.nop,
-    Buttons.FX_DELAY            : CallBacks.nop,
-    Buttons.FX_REVERB           : CallBacks.nop,
-    Buttons.PART_COMMON_MUTE    : CallBacks.nop,
-    Buttons.PART_COMMON_SOLO    : CallBacks.nop,
-    Pads.PART_SELECT_01         : CallBacks.select_part,
-    Pads.PART_SELECT_02         : CallBacks.select_part,
-    Pads.PART_SELECT_03         : CallBacks.select_part,
-    Pads.PART_SELECT_04         : CallBacks.select_part,
-    Pads.PART_SELECT_05         : CallBacks.select_part,
-    Pads.PART_SELECT_06         : CallBacks.select_part,
-    Pads.PART_SELECT_07         : CallBacks.select_part,
-    Pads.PART_SELECT_08         : CallBacks.select_part,
-    Pads.PART_SELECT_09         : CallBacks.select_part,
-    Pads.PART_SELECT_10         : CallBacks.select_part,
-    Pads.PART_SELECT_11         : CallBacks.select_part,
-    Pads.PART_SELECT_12         : CallBacks.select_part,    
-    Pads.AUX_SHIFT              : CallBacks.aux,
-    Pads.AUX_PATTERN_SET        : CallBacks.aux,
-    Pads.AUX_KEYBOARD           : CallBacks.aux,
-    Pads.AUX_LAST_STEP          : CallBacks.aux,
-    Pads.AUX_COPY               : CallBacks.aux,
-    Pads.AUX_PASTE              : CallBacks.aux,
-    Pads.AUX_SCALE              : CallBacks.aux,
-    Pads.AUX_GROOVE             : CallBacks.aux,
-    Pads.AUX_MOTION             : CallBacks.aux,
-    Pads.AUX_DELAY              : CallBacks.aux,
-    Pads.AUX_REVERB             : CallBacks.aux,
-    Pads.AUX_FX_CHAIN           : CallBacks.aux,
-    Pads.AUX_BPM_SYNC           : CallBacks.aux,
+    Knobs.STEP_EDIT             : CallBacks.step_edit,    
 }
