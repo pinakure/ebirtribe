@@ -541,20 +541,6 @@ class Valve(Widget):
 ###############################################################################
 # TODO ########################################################################
 ###############################################################################
-
-class JogWheel(Widget):
-    def __init__(self, name="UnnamedJogWheel", x=0, y=0, width=224, height=224, min=0, value=0, max=255):
-        super().__init__(Widget.JOG_WHEEL, name, x, y, width, height, min, value, max)
-
-    def render( self, app ):
-        super().render( app )
-        pygame.draw.circle( app.screen, (255,255,0), (self.rect[0]+(self.rect[2]//2),self.rect[1]+(self.rect[3]//2)), self.rect[2]/2, 2)
-        width, height = app.resources.jog_wheel.get_size()
-        width //= 24
-        factor = self.value / self.max
-        frame  = factor * 24
-        app.screen.blit( app.resources.jog_wheel, (self.x, self.y))
-
 class Lcd(Widget):
     def __init__(self, name="UnnamedLcd", x=0, y=0, width=96, height=96, columns=16, rows=5, skin=0):
         self.columns        = columns
@@ -580,15 +566,28 @@ class Lcd(Widget):
     def render(self, app):
         self.update()
         surface = app.screen
-        font    = app.fonts.dot_m
-        y       = font.offset
+        y       = 0
         for line in self.buffer:
-            txt             = font.render(f"{line}", True, self.color)
-            tpos            = ( self.x, self.y + y )
-            y               += self.row_height
+            font    = app.fonts.dot_m if len(line)<=16 else app.fonts.dot_xs
+            txt     = font.render(f"{line}", True, self.color)
+            tpos    = ( self.x, self.y + y + font.offset)
+            y       += self.row_height
             surface.blit    ( txt, tpos, area=(0,0,self.width-8, self.row_height))
         # pygame.draw.rect( app.screen, self.color, self.rect, 1)
 
+class JogWheel(Widget):
+    def __init__(self, name="UnnamedJogWheel", x=0, y=0, width=224, height=224, min=0, value=0, max=255):
+        super().__init__(Widget.JOG_WHEEL, name, x, y, width, height, min, value, max)
+
+    def render( self, app ):
+        super().render( app )
+        pygame.draw.circle( app.screen, (255,255,0), (self.rect[0]+(self.rect[2]//2),self.rect[1]+(self.rect[3]//2)), self.rect[2]/2, 2)
+        width, height = app.resources.jog_wheel.get_size()
+        width //= 24
+        factor = self.value / self.max
+        frame  = factor * 24
+        app.screen.blit( app.resources.jog_wheel, (self.x, self.y))
+        
 class Vumeter(Widget):
     def __init__(self, name="UnnamedVumeter", x=0, y=0, width=32, height=96, min=0, value=0, max=255):
         super().__init__(Widget.VUMETER, name, x, y, width, height, min, value, max)
