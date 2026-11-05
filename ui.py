@@ -2,7 +2,6 @@ import  inspect
 import  pygame
 from    pygame._sdl2    import Window
 import  interface
-from    interface       import JUMP_TABLE, CallBacks
 import  os
 import  filesys
 from    widget          import LedTypes,Widget
@@ -103,7 +102,7 @@ class UI:
         # Comprobar si el evento es recibido por un widget
         for key,w in UI.widgets.items():
             if w.handle( event, app ) and w.drag:
-                return JUMP_TABLE.get(key, CallBacks.nop)(w, event, app)
+                return True
                 
         # Comprobar si el evento es recibido por el gestor de ficheros (desactivado)
         # if FileMan.handle(app, event ): return True

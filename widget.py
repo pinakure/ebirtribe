@@ -234,6 +234,7 @@ class Widget:
     def mouseUp     (self, event): return event.type == pygame.MOUSEBUTTONUP   and event.button == 1
     def mouseMove   (self, event): return event.type == pygame.MOUSEMOTION
     def touches     (self, event): return self.knob.collidepoint(event.pos) or self.rect.collidepoint(event.pos)
+    def touchesRect (self, event): return self.rect.collidepoint(event.pos)
     def touchesKnob (self, event): return self.knob.collidepoint(event.pos) 
         
     def render(self, app):
@@ -453,33 +454,65 @@ class Fader(Widget):
         app.screen.blit( app.resources.fader, (self.knob.x, self.knob.y))  
 
 class Button(Widget):
-    def __init__(self, name="UnnamedButton", x=0, y=0, width=128, height=56, gfx_pos=(0,0), value=0, gfx_size=(96,64)):
+    def __init__(self, name="UnnamedButton", x=0, y=0, width=128, height=56, gfx_pos=(0,0), value=0, gfx_size=(96,64), callback=None):
         super().__init__(Widget.BUTTON, name, x, y, width, height, 0, value, 1)
         self.gfx_pos    = gfx_pos
         self.gfx_size   = gfx_size
+        self.value      = True if value else False
         self.knob       = None
+        self.callback   = callback
+        self.highlight  = False
         self.middle     = (self.x+(self.rect.width//2), self.y+(self.rect.height//2))
         self.position   = (self.middle[0] - (self.gfx_size[0]//2),self.middle[1] - (self.gfx_size[1]//2))
-        
-    def render(self, app):
-        # super().render(app)        
-        # pygame.draw.rect( app.screen, (255,255,0), self.rect, 1, border_radius=10)
+    
+    def handle(self, event, app):
+        if self.mouseDown(event):        
+            if self.touchesRect(event):
+                if self.callback is not None:
+                    self.callback(self, event, app)                    
+                else: 
+                    self.value = 1
+                self.update()
+                return True
+        elif self.mouseUp(event):
+            self.value = 0
+            self.update()
+            return True
+        return False
+    
+    def update(self):
+        pass
+    
+    def demo(self):
         if random.randint(0,10)==7:
             self.value = True if random.randint(0,10)==7 else False
-        if self.value: 
+        self.update()
+    
+    def render(self, app):
+        if self.value or self.highlight: 
             app.screen.blit( app.resources.buttons, self.position, area=(*self.gfx_pos, *self.gfx_size))
 
-
-class Pad(Widget):
-    def __init__(self, name="UnnamedPad", x=0, y=0, width=96, height=96, min=0, value=0, max=1):
-        super().__init__(Widget.PAD, name, x, y, width, height, min, value, max)
+class Pad(Button):
+    def __init__(self, name="UnnamedPad", x=0, y=0, width=96, height=96, gfx_pos=(0,0), value=0, gfx_size=(96,64), callback=None):
+        super().__init__(name, x, y, width, height, gfx_pos, value, gfx_size, callback)
+        self.type = Widget.PAD
         
-    def render(self, app):
-        super().render(app)
-        color = (220, 220, 120,64) if self.drag else (220, 64, 0)
-        pygame.draw.rect( app.screen, color, self.rect, 1)
-        pygame.draw.rect( app.screen, color, self.knob)
-
+    def handle(self, event, app):
+        if self.mouseDown(event):        
+            if self.touchesRect(event):
+                self.highlight = 1
+                if self.callback is not None: 
+                    self.callback(self, event, app)
+                else: 
+                    self.value ^=1
+                self.update()
+                return True
+        elif self.mouseUp(event):
+            self.highlight = 0
+            self.update()
+            return True
+        return False
+    
 class Led(Widget):
     def __init__(self, name="UnnamedLed", x=0, y=0, width=16, height=16, kind=0, value=0, max=None):
         self.kind           = kind
