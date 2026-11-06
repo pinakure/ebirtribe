@@ -44,6 +44,7 @@ class UI:
         UI.initWidgets  (app)
         UI.loadFonts    (app)
         app.clock       = pygame.time.Clock()
+        UI.create       ()
         return Window.from_display_module()
     
     def initWidgets( app ):

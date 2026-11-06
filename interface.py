@@ -1,43 +1,5 @@
 from widget     import Knob, Slider, Fader, Button, Pad, Led, Valve, Lcd, Vumeter, JogWheel, LedTypes
 
-class EffectHandler:
-    # TODO: move to emx module
-    COMPRESSOR      = 0x00     
-    DELAY           = 0x01 
-    DISTORTION      = 0x02     
-    EQUALIZER       = 0x03     
-    FILTER          = 0x04 
-    PITCH           = 0x05 
-    REVERB          = 0x06 
-    RING_MOD        = 0x07
-    
-    active_effect   = 0x00
-    
-    def selectEffect( effect ):
-        EffectHandler.active_effect = effect
-
-class MenuHandler:
-    # TODO: move to emx module
-    menu    = False
-    exit    = False
-    enter   = False
-    f1      = False
-    f2      = False
-    f3      = False
-    
-    def update():
-        
-        # Do stuff 
-        
-        # Restore switches
-        MenuHandler.menu    = False
-        MenuHandler.exit    = False
-        MenuHandler.enter   = False
-        MenuHandler.f1      = False
-        MenuHandler.f2      = False
-        MenuHandler.f3      = False
-            
-
 class Leds:
     STEP_01             = 0x00
     STEP_02             = 0x01
@@ -330,40 +292,43 @@ class CallBacks:
     
     # Effect Buttons Handler
     def effect(widget, event, app):
+        fx = app.emx.fx
         effects = {
-            Buttons.FX_COMPRESSOR   : EffectHandler.COMPRESSOR,
-            Buttons.FX_DELAY        : EffectHandler.DELAY,
-            Buttons.FX_DISTORTION   : EffectHandler.DISTORTION,
-            Buttons.FX_EQUALIZER    : EffectHandler.EQUALIZER,
-            Buttons.FX_FILTER       : EffectHandler.FILTER,
-            Buttons.FX_PITCH        : EffectHandler.PITCH,
-            Buttons.FX_REVERB       : EffectHandler.REVERB,
-            Buttons.FX_RING_MOD     : EffectHandler.RING_MOD,
+            Buttons.FX_COMPRESSOR   : fx.COMPRESSOR,
+            Buttons.FX_DELAY        : fx.DELAY,
+            Buttons.FX_DISTORTION   : fx.DISTORTION,
+            Buttons.FX_EQUALIZER    : fx.EQUALIZER,
+            Buttons.FX_FILTER       : fx.FILTER,
+            Buttons.FX_PITCH        : fx.PITCH,
+            Buttons.FX_REVERB       : fx.REVERB,
+            Buttons.FX_RING_MOD     : fx.RING_MOD,
         }
         effect = effects.get(widget.uuid)
-        print(f"[ EFFECTS ] Selected effect {hex(effect)} {widget.name}")        
+        print(f"[ INTERFACE ] Selected effect {hex(effect)} {widget.name}")        
         # not needed, buttons cannot stay lit unless pressed...
         [ app.ui.widgets[k]._setValue(True if k == widget.uuid else False) for k in effects.keys() ]
-        EffectHandler.selectEffect( effect )        
+        fx.select_effect( effect )        
     
     # Menu Buttons Handler
     def menu(widget, event, app):
+        menu = app.emx.menu
         {
-            Buttons.FUNCTION_MENU   : MenuHandler.menu,
-            Buttons.FUNCTION_F1     : MenuHandler.f1,
-            Buttons.FUNCTION_F2     : MenuHandler.f2,
-            Buttons.FUNCTION_F3     : MenuHandler.f3,
-            Buttons.FUNCTION_ENTER  : MenuHandler.enter,
-            Buttons.FUNCTION_EXIT   : MenuHandler.exit,
+            Buttons.FUNCTION_MENU   : menu.menu,
+            Buttons.FUNCTION_F1     : menu.f1,
+            Buttons.FUNCTION_F2     : menu.f2,
+            Buttons.FUNCTION_F3     : menu.f3,
+            Buttons.FUNCTION_ENTER  : menu.enter,
+            Buttons.FUNCTION_EXIT   : menu.exit,
         }[widget.uuid]=True
-        MenuHandler.update()
+        menu.update()
         
     # Part selector
     def select_part(widget, event, app):
+        part = app.emx.part
         # Selección exclusiva de botones
-        [ app.ui.widgets[k]._setValue(True if k == widget.uuid else False) for k in range(Pads.PART_SELECT_01, Pads.PART_SELECT_12+1) ]
-        print(dir(widget))
-    
+        # [ app.ui.widgets[k]._setValue(True if k == widget.uuid else False) for k in range(Pads.PART_SELECT_01, Pads.PART_SELECT_12+1) ]
+        part.handle( widget.uuid - Pads.PART_SELECT_01)
+        
     # Part / Keyboard
     def part(widget, event, app):
         print(widget.name, hex(widget.uuid))

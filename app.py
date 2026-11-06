@@ -1,6 +1,6 @@
 from    ui          import UI, Fonts
 from    filesys     import FileMan
-from    emx         import EMXPlayer
+from    emx         import EMX1
 
 class App:
     name        = "LUSH EbirTribE EMX-1"
@@ -31,8 +31,7 @@ class App:
         App.pygame  = pygame
         App.ui      = UI
         App.window  = App.ui.init( App, archivo_entrada )
-        App.emx     = EMXPlayer(App, archivo_entrada)
-        UI.create()
+        App.emx     = EMX1(App, archivo_entrada)
         FileMan.init( pygame, App )
         #App.stream.start()
         
