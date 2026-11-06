@@ -382,9 +382,8 @@ Al llamar a `set_mode()` o `set_line()` desde la aplicación, el LCD desactiva l
 
 ## Consideraciones de desarrollo
 
-- Mantén disponibles los recursos gráficos y las fuentes que espera cada widget (`app.resources` y `app.fonts`).
-- Para el LCD, comprueba que `dot_xs` incluye el bloque Braille Unicode completo.
-- No sustituyas los caracteres personalizados del logo o de `GLYPHS` por aproximaciones visuales: forman parte del diseño de la interfaz.
+- Deben mantenerse disponibles los recursos gráficos y las fuentes que espera cada widget (`app.resources` y `app.fonts`).
+- Para el LCD, es necesario que la fuente asignada a `app.fonts.dot_xs` incluya el bloque Braille Unicode completo.
 - Las coordenadas del raster se expresan en píxeles lógicos, no en píxeles de la ventana de Pygame.
 - `Lcd` no recibe eventos de ratón: su contenido se modifica desde el código que controla la interfaz.
 
