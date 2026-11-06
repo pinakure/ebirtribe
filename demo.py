@@ -20,7 +20,7 @@ class LcdDemo(object):
     blocks      = " ░▒▓█"
     duration    = 6.5
 
-    VERSION     = 1.0
+    VERSION     = 1.1
     BOOT_SPLASH = [
         [
             "▛▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▜",
@@ -278,8 +278,7 @@ class LcdDemo(object):
         scale = base * grow
         shift_x, shift_y = exit_x * travel, exit_y * travel
         if shape_index == 3:
-            # The heart rushes toward the viewer, enlarges, then vanishes.
-            approach = min(1.0, max(0.0, local / 6.5))
+            # Keep the heart clearly readable and rotating for four extra seconds,
             scale *= 1.0 + approach * 5.0
             fade_keep = max(0.0, 1.0 - max(0.0, approach - .58) / .42)
         else:
@@ -455,40 +454,59 @@ class LcdDemo(object):
         return LcdDemo.pixel_pack(g)
 
     def sample_scene():
-        """Folded sample waveform with a moving playback scanline and sample label."""
-        g = LcdDemo.pixel_canvas(rows=4)
-        w, h = g.width, g.height
-        t = LcdDemo.now * .001
-        mid = h * .50
-        amp = h * .43
-        previous = None
-        for x in range(w):
-            p = x / float(max(1, w - 1))
-            # Folded/rectified audio: one averaged half-wave envelope.
-            wave = abs(math.sin(p * math.pi * 2.0 + .18 * math.sin(t * .7)))
-            detail = .72 + .28 * abs(math.sin(p * math.pi * 13.0 + t * .8))
-            y = mid - wave * detail * amp
-            if previous is not None:
-                g.line(x - 1, previous, x, y)
-            previous = y
-        play_x = int((t * 13.0) % w)
-        g.line(play_x, 0, play_x, h - 1)
+        """Instrument sample viewer: waveform above, scrolling filename below."""
         lcd = LcdDemo.lcd
-        # Mixed mode reserves the last text row below the raster for the sample name.
-        if hasattr(lcd, "set_line"):
-            lcd.set_line(3, "909_KICK_01.WAV")
+
+        # Scene 6 (oscilloscope) has already selected mixed mode. Reuse its
+        # raster here rather than repeatedly switching display modes.
+        g = lcd.raster
+        lcd.clear()
+        w, h = g.width, g.height
+        t = LcdDemo.now * 0.001
+
+        # A sustained, harmonically rich instrument sample (not a decaying
+        # kick): a warm analogue string/pad with a short attack and release.
+        previous_y = None
+        mid = (h - 1) * 0.5
+        for x in range(w):
+            phase = x / float(max(1, w - 1))
+            angle = phase * math.tau * 7.0
+            attack = min(1.0, phase * 12.0)
+            release = min(1.0, max(0.0, (1.0 - phase) * 9.0))
+            envelope = min(attack, release)
+            signal = (math.sin(angle) +
+                      0.48 * math.sin(2.0 * angle + 0.25) +
+                      0.22 * math.sin(3.0 * angle + 0.7) +
+                      0.09 * math.sin(5.0 * angle + 0.1)) / 1.79
+            signal *= envelope
+            y = max(0, min(h - 1, mid - signal * (h * 0.46)))
+            if previous_y is not None:
+                g.line(x - 1, previous_y, x, y)
+            g.plot(x, y)
+            previous_y = y
+
+        # Playback cursor moves through the displayed sample and loops.
+        playhead_x = int(((t * 0.18) % 1.0) * max(1, w - 1))
+        g.line(playhead_x, 0, playhead_x, h - 1)
+
+        # The text buffer is exactly one small-font line under the raster.
+        # Scroll the full instrument filename through the narrow text area;
+        # never place it in the wide/pixel rows or function-key labels.
+        instrument_name = "JUNO-106 WARM ANALOG STRINGS C4 SAMPLE.WAV"
+        text_rows = [""] * max(0, LcdDemo.rows - 1)
+        text_rows.append(LcdDemo.scroll(instrument_name, LcdDemo.frame // 2,
+                                        LcdDemo.narrow))
+        lcd.buffer = LcdDemo.lines(text_rows)
+        lcd.functions = ["", "", ""]
         lcd._demo_enabled = True
-        return g.get()
+        return None
 
 
     def image_scene():
-        """A happy face travelling around the LCD with a smooth bouncing path."""
+        """Bouncing happy face with a genuine frame-by-frame negative-video strobe."""
         g = LcdDemo.pixel_canvas()
         w, h = g.width, g.height
-        t = LcdDemo.now * 0.001
-        # The face itself stays stable; only the eyes blink at irregular intervals.
-        ink = 1
-        g.clear(0)
+        t = LcdDemo.now * .001
         if not hasattr(LcdDemo, "smile_blink_until"):
             LcdDemo.smile_blink_until = 0.0
             LcdDemo.smile_next_blink = t + 1.1
@@ -499,63 +517,70 @@ class LcdDemo(object):
             LcdDemo.smile_blink_until = t + random.uniform(.07, .16)
             LcdDemo.smile_next_blink = t + random.uniform(1.2, 3.8)
         if t >= LcdDemo.smile_next_flash:
-            LcdDemo.smile_flash_until = t + random.uniform(.045, .11)
-            LcdDemo.smile_next_flash = t + random.uniform(1.0, 4.2)
+            LcdDemo.smile_flash_until = t + random.uniform(.10, .18)
+            LcdDemo.smile_next_flash = t + random.uniform(1.0, 3.0)
         blinking = t < LcdDemo.smile_blink_until
         flashing = t < LcdDemo.smile_flash_until
-        if int(t * 24) != getattr(LcdDemo, "smile_shake_tick", -1):
-            LcdDemo.smile_shake_tick = int(t * 24)
+        tick = int(t * 24.0)
+        if tick != getattr(LcdDemo, "smile_shake_tick", -1):
+            LcdDemo.smile_shake_tick = tick
             LcdDemo.smile_shake = (random.uniform(-1.7, 1.7), random.uniform(-1.3, 1.3))
 
-        radius = max(3.0, min(w * 0.19, h * 0.40))
-        # Two incommensurate waves plus random jitter make the face roam and vibrate.
+        radius = max(3.0, min(w * .19, h * .40))
         sx, sy = LcdDemo.smile_shake
-        cx = radius + (w - 2 * radius) * (0.5 + 0.5 * math.sin(t * 0.83)) + sx
-        cy = radius + (h - 2 * radius) * (0.5 + 0.5 * math.sin(t * 1.17 + 1.2)) + sy
-        if flashing:
-            # Full-screen inverse-video flash with a jagged lightning bolt
-            # cut out as a dark silhouette.
-            for yy in range(h):
-                for xx in range(w):
-                    g.plot(xx, yy)
-            bolt = [(cx + radius*.18, cy-radius*.92),
-                    (cx-radius*.18, cy-radius*.12),
-                    (cx+radius*.12, cy-radius*.12),
-                    (cx-radius*.28, cy+radius*.88)]
-            for a, b in zip(bolt, bolt[1:]):
-                # Bright alternating pixels make the bolt legible in the flash.
-                g.line(round(a[0]), round(a[1]), round(b[0]), round(b[1]), value=0)
-            return g.get()
-        inverted = (int(t * 7.0) % 2) == 1
-        if inverted:
-            # Negative-video frame: light field around a dark circular face.
-            for yy in range(h):
-                for xx in range(w):
-                    inside_face = (xx-cx)**2 + (yy-cy)**2 <= radius*radius
-                    if not inside_face and (xx + yy) % 2 == 0:
-                        g.plot(xx, yy)
-        # On inverse frames, the face interior remains dark while its outline
-        # and expression are lit, like a true negative-video insert.
-        g.circle(cx, cy, radius, radius, value=ink)
+        cx = radius + (w - 2 * radius) * (.5 + .5 * math.sin(t * .83)) + sx
+        cy = radius + (h - 2 * radius) * (.5 + .5 * math.sin(t * 1.17 + 1.2)) + sy
+        mask = set()
+        def mask_line(x0, y0, x1, y1):
+            x0, y0, x1, y1 = map(lambda v: int(round(v)), (x0, y0, x1, y1))
+            dx, sx2 = abs(x1-x0), 1 if x0 < x1 else -1
+            dy, sy2 = -abs(y1-y0), 1 if y0 < y1 else -1
+            err = dx + dy
+            while True:
+                if 0 <= x0 < w and 0 <= y0 < h:
+                    mask.add((x0, y0))
+                if x0 == x1 and y0 == y1:
+                    break
+                e2 = 2 * err
+                if e2 >= dy:
+                    err += dy
+                    x0 += sx2
+                if e2 <= dx:
+                    err += dx
+                    y0 += sy2
 
-        eye_dx = radius * 0.38
-        eye_top = cy - radius * 0.35
-        eye_bottom = cy + radius * 0.02
-        for ex in (cx - eye_dx, cx + eye_dx):
+        for deg in range(360):
+            a = math.radians(deg)
+            x, y = int(round(cx + math.cos(a)*radius)), int(round(cy + math.sin(a)*radius))
+            if 0 <= x < w and 0 <= y < h:
+                mask.add((x, y))
+        eye_dx = radius * .38
+        for ex in (cx-eye_dx, cx+eye_dx):
             if blinking:
-                g.line(round(ex - 1), round(cy - radius * .18), round(ex + 1), round(cy - radius * .18), value=ink)
+                mask_line(ex-1, cy-radius*.18, ex+1, cy-radius*.18)
             else:
-                g.line(round(ex), round(eye_top), round(ex), round(eye_bottom), value=ink)
+                mask_line(ex, cy-radius*.35, ex, cy+radius*.02)
+        smile = [(cx-radius*.48, cy+radius*.18), (cx-radius*.28, cy+radius*.39),
+                 (cx, cy+radius*.46), (cx+radius*.28, cy+radius*.39),
+                 (cx+radius*.48, cy+radius*.18)]
+        for a, b in zip(smile, smile[1:]):
+            mask_line(a[0], a[1], b[0], b[1])
 
-        smile_points = [
-            (cx - radius * 0.48, cy + radius * 0.18),
-            (cx - radius * 0.28, cy + radius * 0.39),
-            (cx,                  cy + radius * 0.46),
-            (cx + radius * 0.28, cy + radius * 0.39),
-            (cx + radius * 0.48, cy + radius * 0.18),
-        ]
-        for a, b in zip(smile_points, smile_points[1:]):
-            g.line(round(a[0]), round(a[1]), round(b[0]), round(b[1]), value=ink)
+        # Hold each polarity for two 24-fps animation frames for a hard strobe.
+        inverted = ((tick // 2) % 2) == 1
+        for yy in range(h):
+            for xx in range(w):
+                lit = ((xx, yy) in mask)
+                if inverted:
+                    lit = not lit
+                if lit:
+                    g.plot(xx, yy)
+        if flashing:
+            bolt = [(cx+radius*.18, cy-radius*.92), (cx-radius*.18, cy-radius*.12),
+                    (cx+radius*.12, cy-radius*.12), (cx-radius*.28, cy+radius*.88)]
+            for a, b in zip(bolt, bolt[1:]):
+                g.line(round(a[0]), round(a[1]), round(b[0]), round(b[1]),
+                       value=0 if inverted else 1)
         return g.get()
 
     # Compact 3x5 bitmap font for the full-width pixel text scroller.
@@ -1408,17 +1433,31 @@ class LcdDemo(object):
 
         demo_time = time - 13.0
         LD.frame = int(demo_time * 16)
-        # Geometry gets three consecutive 6.5-second acts; every other
-        # scene keeps the normal 6.5-second slot.
+        # Scene order is grouped by purpose: EMX identity, character tests,
+        # synth operation, 2D effects, 3D effects, then credits.
+        # IDs are kept stable so the dispatcher and per-scene state remain intact.
         schedule = [
-            (29, 12.0), (0, 6.5), (31, 8.0), (1, 6.5), (2, 26.0), (3, 6.5),
-            (4, 6.5), (5, 6.5), (6, 6.5), (7, 6.5),
-            (8, 6.5), (9, 6.5), (10, 24.0), (11, 6.5),
-            (12, 6.5),
-            (14, 9.0), (15, 9.0), (16, 9.0), (17, 9.0),
-            (18, 9.0), (20, 12.0), (21, 15.0), (19, 15.0),
-            (22, 12.0), (23, 12.0), (24, 12.0), (25, 15.0), (26, 12.0),
-            (27, 12.0), (28, 12.0), (30, 12.0), (13, 30.0)
+            # 1. EMX-1 3D logo
+            (29, 12.0),
+
+            # 2. Character / typography tests
+            (12, 6.5), (10, 24.0),
+
+            # 3. Synth operation and interface visualizations
+            (4, 6.5), (5, 6.5), (20, 12.0), (6, 6.5), (7, 6.5),
+            (8, 6.5), (14, 9.0), (15, 9.0), (16, 9.0), (17, 9.0),
+            (18, 9.0), (23, 12.0),
+
+            # 4. 2D effects and games
+            (0, 6.5), (31, 8.0), (1, 6.5), (3, 6.5), (9, 6.5),
+            (11, 6.5), (19, 15.0), (22, 12.0), (24, 12.0),
+            (25, 15.0), (26, 12.0),
+
+            # 5. 3D effects / objects
+            (2, 30.0), (21, 15.0), (27, 12.0), (28, 12.0), (30, 12.0),
+
+            # 6. Credits
+            (13, 30.0)
         ]
         cycle = sum(item[1] for item in schedule)
         position = demo_time % cycle
@@ -1465,8 +1504,6 @@ class LcdDemo(object):
             synth_screen(LD.waveform_scene)
         elif LD.scene == 7:
             LD.sample_scene()
-            lcd.set_functions("", "909_KICK_01.WAV", "")
-            lcd._demo_enabled = True
         elif LD.scene == 8:
             synth_screen(LD.velocity_scene)
         elif LD.scene == 9:
