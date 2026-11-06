@@ -279,6 +279,8 @@ class LcdDemo(object):
         shift_x, shift_y = exit_x * travel, exit_y * travel
         if shape_index == 3:
             # Keep the heart clearly readable and rotating for four extra seconds,
+            # then move it toward the viewer and fade it out.
+            approach = min(1.0, max(0.0, (local - 4.0) / 6.5))
             scale *= 1.0 + approach * 5.0
             fade_keep = max(0.0, 1.0 - max(0.0, approach - .58) / .42)
         else:
