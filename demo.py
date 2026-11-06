@@ -1,6 +1,7 @@
 import random
 import pygame
 import math
+from array import array
 
 
 class LcdDemo(object):
@@ -19,6 +20,9 @@ class LcdDemo(object):
     shade       = " ▁▂▃▄▅▆▇█"
     blocks      = " ░▒▓█"
     duration    = 6.5
+    music_sound = None
+    music_channel = None
+    music_attempted = False
 
     VERSION     = 1.1
     BOOT_SPLASH = [
@@ -38,6 +42,114 @@ class LcdDemo(object):
         ]        
     ]
 
+    def start_music():
+        """Sixteen evolving four-bar Goa/psytrance patterns, generated as PCM."""
+        LD = LcdDemo
+        if LD.music_attempted:
+            if LD.music_sound is not None:
+                try:
+                    if LD.music_channel is None or not LD.music_channel.get_busy():
+                        LD.music_channel = LD.music_sound.play(loops=-1)
+                        if LD.music_channel:
+                            LD.music_channel.set_volume(0.78)
+                except pygame.error:
+                    pass
+            return
+        LD.music_attempted = True
+        try:
+            if not pygame.mixer.get_init():
+                pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=1024)
+            spec = pygame.mixer.get_init()
+            if not spec:
+                return
+            rate, sample_size, channels = spec
+            if sample_size != -16 or channels not in (1, 2):
+                return
+            bpm = 144.0
+            dt = 1.0 / rate
+            step_len = 60.0 / bpm / 4.0
+            bars_per_pattern = 4
+            pattern_count = 16
+            steps = pattern_count * bars_per_pattern * 16
+            samples = int(steps * step_len * rate)
+            tau = math.tau
+
+            def hz(note):
+                return 440.0 * (2.0 ** ((note - 69) / 12.0))
+
+            roots = (49,45,47,45,49,45,47,52,49,45,47,45,49,45,47,47)
+            scale = (5,0,3,5,7,8,10)            
+            shapes = ((0,0,6,0,0,6,0,6),(0,0,6,0,0,6,0,0),
+                      (6,0,0,6,0,0,6,0),(0,6,0,0,6,0,0,6))
+            kick=[False]*steps; hat=[False]*steps; ohat=[False]*steps
+            snare=[False]*steps; bass=[None]*steps; lead=[None]*steps
+            for st in range(steps):
+                pat=st//64; bar=(st//16)%4; pos=st%16
+                if pos%4==0 or (pat%4==3 and bar==3 and pos==15): kick[st]=True
+                if pos%4==2: hat[st]=True
+                if pos in (6,14) and (bar in (1,3) or pat%4==2): ohat[st]=True
+                if pos in (4,12): snare[st]=True
+                bass[st]=hz(roots[pat]-24)
+                if pos in (2,3,4,6,10,14): bass[st]=hz(roots[pat]-12)
+                if pos==0 or (pos+pat)%16 in [1,3,7,11] or pos%4==2 or (pat%4==3 and pos in (7,15)):
+                    deg=shapes[pat%4][(pos//2+bar)%8]
+                    note=roots[pat]+(12 if pos%4==2 else 16 if pos>0 else -12)#+scale[deg]+(12 if pos in (6,14) and pat%2 else 0)
+                    lead[st]=hz(note)
+
+            pcm=array('h')
+            ka=ha=oa=sa=ba=la=99.0
+            bf=lf=bp=lp=0.0
+            noise_state=0x4A17C3
+            last=-1
+            for n in range(samples):
+                t=n*dt
+                st=min(steps-1,int(t/step_len))
+                if st!=last:
+                    if kick[st]: ka=0.0
+                    if hat[st]: ha=0.0
+                    if ohat[st]: oa=0.0
+                    if snare[st]: sa=0.0
+                    if bass[st] is not None: bf=bass[st]; ba=0.0; bp=0.0
+                    if lead[st] is not None: lf=lead[st]; la=0.0; lp=0.0
+                    last=st
+                k=0.0
+                if ka<0.34:
+                    phase=tau*(48*ka+(105/28)*(1-math.exp(-ka*28)))
+                    k=math.sin(phase)*math.exp(-ka*10.5)*0.98
+                noise_state=(1664525*noise_state+1013904223)&0xFFFFFFFF
+                nz=((noise_state>>16)/32768.0)-1.0
+                h=nz*math.exp(-ha*95)*0.22 if ha<0.09 else 0.0
+                oh=nz*math.exp(-oa*19)*0.24 if oa<0.28 else 0.0
+                sn=nz*math.exp(-sa*24)*0.24 if sa<0.22 else 0.0
+                bs=0.0
+                if ba<0.22 and bf:
+                    bp+=tau*bf*dt
+                    saw=2*((bp/tau)%1)-1
+                    bs=(0.52*saw+0.42*math.sin(bp))*math.exp(-ba*17)*0.82
+                ld=0.0
+                if la<0.34 and lf:
+                    lp+=tau*lf*dt
+                    env=math.exp(-la*4.2)
+                    pulse=1.0 if math.sin(lp)>0.18 else -1.0
+                    ld=(0.18*pulse+0.34*math.sin(lp)+0.12*math.sin(lp*2.01))*env
+                pat=st//64
+                shimmer=0.035*math.sin(tau*hz(roots[pat]+19 if pos%1 ==0 else 24)*t)*(0.5+0.5*math.sin(tau*0.5*t))
+                
+                mix=max(-0.96,min(0.96,k*0.86+bs*0.90+h+oh+sn+ld*0.42+shimmer))
+                pan=math.sin(tau*(0.035+(pat%3)*0.006)*t)
+                if channels==2:
+                    pcm.append(int(max(-0.98, min(0.98, mix*(0.90-0.06*pan))) * 32767))
+                    pcm.append(int(max(-0.98, min(0.98, mix*(0.90+0.06*pan))) * 32767))
+                else:
+                    pcm.append(int(mix*32767))
+                ka+=dt; ha+=dt; oa+=dt; sa+=dt; ba+=dt; la+=dt
+            LD.music_sound=pygame.mixer.Sound(buffer=pcm.tobytes())
+            LD.music_channel=LD.music_sound.play(loops=-1)
+            if LD.music_channel: LD.music_channel.set_volume(0.78)
+        except (pygame.error, ValueError, OverflowError, MemoryError):
+            LD.music_sound=None
+            LD.music_channel=None
+
     def init(lcd):
         LcdDemo.lcd     = lcd
         # Logical geometry never changes.
@@ -45,6 +157,9 @@ class LcdDemo(object):
         LcdDemo.narrow  = max(1, lcd.columns)
         LcdDemo.wide    = LcdDemo.narrow * 2
         LcdDemo.rows    = max(1, lcd.rows)
+        LcdDemo.start_music()
+        LcdDemo.music_delay = pygame.time.get_ticks()
+        pygame.display.flip()
         LcdDemo.run()        
 
     def fit(value, limit=None):
@@ -1398,7 +1513,8 @@ class LcdDemo(object):
     def run():
         LD = LcdDemo
         lcd = LD.lcd
-        LD.now = pygame.time.get_ticks()
+        LD.start_music()
+        LD.now = pygame.time.get_ticks() - LD.music_delay
         time = (LD.now - lcd._demo_started) / 1000.0
         LD.frame = int(time * 16)
         lcd._demo_frame = LD.frame
