@@ -1,7 +1,232 @@
+import numpy as np
 import random
 import pygame
 import math
+import struct
+import ctypes
+import ctypes.util
+import os
 from array import array
+from pygame._sdl2.mixer import set_post_mix
+
+import os
+import sys
+import ctypes
+import ctypes.util
+from pathlib import Path
+
+
+class Audio:
+    """Shared simulated audio source for every audio-related demo view."""
+
+    SAMPLE_RATE = 22050
+    BUFFER_SIZE = 256
+    FFT_SIZE = 128
+    SPECTRUM_BINS = 32
+    CHANNEL_COUNT = 12
+
+    def __init__(self):
+        self.time = 0.0
+        self.sample_rate = self.SAMPLE_RATE
+        self.left = [0.0] * self.BUFFER_SIZE
+        self.right = [0.0] * self.BUFFER_SIZE
+        self.waveform = [0.0] * self.BUFFER_SIZE
+        self.spectrum = [0.0] * self.SPECTRUM_BINS
+        self.peak = 0.0
+        self.rms = 0.0
+        self.channel_levels = [0.0] * self.CHANNEL_COUNT
+        self.channel_peaks = [0.0] * self.CHANNEL_COUNT
+        self.voices = []
+        self.envelope = {"attack": 0.12, "decay": 0.28,
+                         "sustain": 0.62, "release": 0.35, "value": 0.0}
+        self.lfo = {"phase": 0.0, "rate": 0.7, "value": 0.0}
+        self.filter = {"cutoff": 0.55, "resonance": 0.32}
+        # One canonical musical model shared by every notation/editor scene.
+        self.sequencer = {"step": 0, "steps": 16, "bpm": 144,
+                          "beats_per_bar": 4, "subdivision": 4,
+                          "position_beats": 0.0}
+        self.key = "A minor"
+        self.scale = (0, 2, 3, 5, 7, 8, 10)
+        self.quantization = 0.25  # quarter-beat (sixteenth-note) grid
+        self.note_sequence = [
+            {"pitch": pitch, "start": start, "duration": duration,
+             "velocity": velocity}
+            for start, pitch, duration, velocity in [
+                (0, 67, .75, 112), (0, 64, .50, 88), (1, 69, .50, 98),
+                (1.5, 66, .50, 76), (2, 70, .75, 120), (2.5, 62, .50, 64),
+                (3.5, 67, .50, 104), (4, 63, .75, 92), (4.5, 68, .50, 86),
+                (5, 65, .50, 108), (6, 71, .75, 116), (6.5, 64, .50, 78),
+                (7, 69, .75, 100), (8, 72, .50, 114), (8.5, 67, .50, 82),
+                (9, 70, .75, 106), (10, 65, .50, 90), (10.5, 62, .50, 72),
+                (11, 69, .75, 118), (12, 67, .75, 110), (13, 64, .50, 84),
+                (14, 72, .75, 122), (15, 69, .50, 96)]]
+        self.velocity_steps = [112, 76, 98, 42, 120, 64, 88, 24,
+                               104, 56, 126, 72, 36, 92, 60, 116]
+        self.sample_waveform = [0.0] * self.BUFFER_SIZE
+        self._phase = 0.0
+        self._channel_phase = [0.0] * self.CHANNEL_COUNT
+
+    def ingest_pcm(self, pcm, now=None, sample_rate=None, channels=2):
+        """Analyze interleaved signed-16 PCM supplied by the active audio engine."""
+        if now is not None:
+            self.time = float(now)
+        if sample_rate:
+            self.sample_rate = int(sample_rate)
+        if not pcm:
+            pcm = bytes(self.BUFFER_SIZE * max(1, channels) * 2)
+        channels = max(1, int(channels))
+        usable = len(pcm) - (len(pcm) % (2 * channels))
+        if usable <= 0:
+            return self
+        count = usable // 2
+        values = struct.unpack('<' + 'h' * count, pcm[:usable])
+        frames = count // channels
+        left, right = [], []
+        for i in range(frames):
+            l = values[i * channels] / 32768.0
+            r = values[i * channels + 1] / 32768.0 if channels > 1 else l
+            left.append(l)
+            right.append(r)
+        # Resample the captured mixer block to the fixed display buffer size.
+        def resize(data, size):
+            if not data:
+                return [0.0] * size
+            return [data[min(len(data)-1, int(i * len(data) / size))] for i in range(size)]
+        self.left = resize(left, self.BUFFER_SIZE)
+        self.right = resize(right, self.BUFFER_SIZE)
+        self.waveform = [(l + r) * .5 for l, r in zip(self.left, self.right)]
+        self.peak = max(abs(v) for v in self.waveform)
+        self.rms = math.sqrt(sum(v*v for v in self.waveform) / len(self.waveform))
+        self.envelope['value'] = min(1.0, self.rms * 2.5)
+        self.lfo['value'] = self.waveform[-1]
+        self.lfo['phase'] = (self.lfo['phase'] + .05) % 1.0
+        self.sample_waveform = self.waveform[:]
+        # Divide the captured spectrum into logarithmically increasing DFT bins.
+        spectrum = []
+        n = len(self.waveform)
+        for band in range(1, self.SPECTRUM_BINS + 1):
+            real = imag = 0.0
+            for i, value in enumerate(self.waveform):
+                window = .5 - .5 * math.cos(math.tau * i / max(1, n - 1))
+                angle = math.tau * band * i / n
+                real += value * window * math.cos(angle)
+                imag -= value * window * math.sin(angle)
+            spectrum.append(min(1.0, math.hypot(real, imag) / n * 8.0))
+        self.spectrum = spectrum
+        # Without per-track stems, expose measured frequency regions as channels.
+        self.channel_levels = [max(spectrum[i:i+3], default=0.0)
+                               for i in range(0, self.CHANNEL_COUNT * 3, 3)]
+        self.channel_peaks = [min(1.0, v * 1.12) for v in self.channel_levels]
+        bpm = float(self.sequencer['bpm'])
+        beat = self.time * bpm / 60.0
+        self.sequencer['position_beats'] = beat
+        self.sequencer['step'] = int(beat * self.sequencer['subdivision']) % self.sequencer['steps']
+        self.voices = []
+        return self
+
+    def simulateAudio(self, now=None):
+        """Generate one shared stereo audio block and its analysis buffers."""
+        if now is None:
+            now = self.time + self.BUFFER_SIZE / float(self.SAMPLE_RATE)
+        now = float(now)
+        dt = 1.0 / self.SAMPLE_RATE
+        block_time = self.BUFFER_SIZE * dt
+        start_time = max(0.0, now - block_time)
+        self.time = now
+
+        bpm = float(self.sequencer["bpm"])
+        beat_duration = 60.0 / max(1.0, bpm)
+        position_beats = now / beat_duration
+        self.sequencer["position_beats"] = position_beats
+        step_duration = beat_duration / max(1, self.sequencer["subdivision"])
+        self.sequencer["step"] = int(position_beats * self.sequencer["subdivision"]) % self.sequencer["steps"]
+        self.lfo["phase"] = (now * self.lfo["rate"]) % 1.0
+        self.lfo["value"] = math.sin(math.tau * self.lfo["phase"])
+
+        left = []
+        right = []
+        levels_sq = [0.0] * self.CHANNEL_COUNT
+        channel_freqs = (55, 82, 110, 146, 165, 196,
+                         220, 247, 293, 330, 392, 440)
+        active_step = self.sequencer["step"]
+        for i in range(self.BUFFER_SIZE):
+            t = start_time + i * dt
+            mix_l = mix_r = 0.0
+            for channel, frequency in enumerate(channel_freqs):
+                phase = self._channel_phase[channel] + math.tau * frequency * t
+                # Six drum-like parts and six sustained synth parts share one clock.
+                if channel < 6:
+                    pulse = max(0.0, math.sin(math.tau * (t * (2.0 + channel * .17)
+                                                           + channel * .113))) ** 10
+                    envelope = .12 + .88 * pulse
+                else:
+                    envelope = .24 + .76 * (.5 + .5 * math.sin(
+                        math.tau * (t * (.32 + channel * .025) + channel * .071)))
+                modulation = 1.0 + .12 * self.lfo["value"]
+                sample = (math.sin(phase) +
+                          .32 * math.sin(phase * 2.0 + .2) +
+                          .12 * math.sin(phase * 3.0 + .7)) / 1.44
+                sample *= envelope * modulation
+                pan = math.sin(math.tau * (channel / float(self.CHANNEL_COUNT)
+                                           + t * .035))
+                gain = .12 if channel < 6 else .105
+                mix_l += sample * gain * (1.0 - .28 * pan)
+                mix_r += sample * gain * (1.0 + .28 * pan)
+                levels_sq[channel] += sample * sample
+
+            left.append(max(-1.0, min(1.0, mix_l)))
+            right.append(max(-1.0, min(1.0, mix_r)))
+
+        self.left = left
+        self.right = right
+        self.waveform = [(l + r) * .5 for l, r in zip(left, right)]
+        self.peak = max((abs(v) for v in self.waveform), default=0.0)
+        self.rms = math.sqrt(sum(v * v for v in self.waveform) /
+                             max(1, len(self.waveform)))
+        self.channel_levels = [
+            min(1.0, math.sqrt(v / self.BUFFER_SIZE) * 1.65)
+            for v in levels_sq
+        ]
+        self.channel_peaks = [
+            min(1.0, level * (1.08 + .08 * math.sin(now * 1.7 + i)))
+            for i, level in enumerate(self.channel_levels)
+        ]
+
+        # A short, windowed DFT supplies the common spectrum buffer.
+        fft_data = self.waveform[-self.FFT_SIZE:]
+        n = len(fft_data)
+        spectrum = []
+        for band in range(1, self.SPECTRUM_BINS + 1):
+            real = imag = 0.0
+            for index, value in enumerate(fft_data):
+                window = .5 - .5 * math.cos(math.tau * index / max(1, n - 1))
+                angle = math.tau * band * index / n
+                weighted = value * window
+                real += weighted * math.cos(angle)
+                imag -= weighted * math.sin(angle)
+            magnitude = math.sqrt(real * real + imag * imag) / max(1, n)
+            spectrum.append(min(1.0, magnitude * 5.0))
+        self.spectrum = spectrum
+
+        # Sample display is a stable, harmonically rich waveform from the same clock.
+        self.sample_waveform = [
+            (math.sin(math.tau * 7.0 * (i / float(self.BUFFER_SIZE)) + now * .18) +
+             .48 * math.sin(math.tau * 14.0 * (i / float(self.BUFFER_SIZE)) + .25) +
+             .22 * math.sin(math.tau * 21.0 * (i / float(self.BUFFER_SIZE)) + .7) +
+             .09 * math.sin(math.tau * 35.0 * (i / float(self.BUFFER_SIZE)) + .1)) / 1.79
+            for i in range(self.BUFFER_SIZE)
+        ]
+        self.envelope["value"] = min(
+            1.0, .15 + .85 * (.5 + .5 * math.sin(math.tau * now * .42)))
+        self.filter["cutoff"] = .5 + .42 * math.sin(now * .31)
+        self.filter["resonance"] = .25 + .2 * (.5 + .5 * math.sin(now * .73))
+        self.voices = [
+            {"note": 36 + ((active_step * 3 + i * 5) % 36),
+             "velocity": self.velocity_steps[(active_step + i) % 16],
+             "level": self.channel_levels[6 + (i % 6)]}
+            for i in range(6)
+        ]
+        return self
 
 
 class LcdDemo(object):
@@ -23,8 +248,52 @@ class LcdDemo(object):
     music_sound = None
     music_channel = None
     music_attempted = False
+    mod_renderer = None
+    mod_channel = None
+    mod_last_pcm = None
+    audio = Audio()
+    audio_provider = None  # Optional synth/backend callback: provider(now) -> PCM or {pcm, sample_rate, channels}
+    captured_pcm = None
+    captured_pcm_lock = None
+    audio_capture_frames = 0
+    audio_capture_error = None
+    audio_debug_reported = False
 
-    VERSION     = 1.1
+    @staticmethod
+    def capture_mixer_audio(postmix_ctx, buffer_audio):
+        """Callback de post-mezcla corregido para capturar el PCM del fallback."""
+        LD = LcdDemo
+        try:
+            # 1. Extraer los bytes puros directamente del segundo argumento
+            raw_bytes = bytes(buffer_audio)
+            LD.captured_bytes = len(raw_bytes)
+            
+            # 2. Convertir a array de NumPy usando int16
+            datos_audio = np.frombuffer(raw_bytes, dtype=np.int16)
+            
+            if len(datos_audio) == 0:
+                LD.wave_peak = 0.0
+                LD.rms = 0.0
+                return
+
+            # 3. Normalizar los valores para calcular pico y RMS
+            datos_normalizados = datos_audio / 32768.0
+            LD.wave_peak = float(np.max(np.abs(datos_normalizados)))
+            LD.rms = float(np.sqrt(np.mean(datos_normalizados**2)))
+            
+            # 4. Almacenar los bytes en las variables que el método run() espera leer
+            LD.mod_last_pcm = raw_bytes
+            LD.captured_pcm = raw_bytes  # <-- ¡AÑADE ESTA LÍNEA AQUÍ!
+            
+            LD.audio_capture_error = None
+            
+        except Exception as exc:
+            LD.wave_peak = 0.0
+            LD.rms = 0.0
+            LD.audio_capture_error = exc
+        
+    
+    VERSION     = 1.0
     BOOT_SPLASH = [
         [
             "▛▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▜",
@@ -42,113 +311,138 @@ class LcdDemo(object):
         ]        
     ]
 
+    class OpenMptRenderer:
+        """Render MOD PCM directly so playback and visual analysis share samples."""
+        def __init__(self, filename, sample_rate=22050, chunk_frames=1024):
+            library = ctypes.util.find_library("openmpt")
+            if not library:
+                raise RuntimeError("libopenmpt no está instalada")
+            self.lib = ctypes.CDLL(library)
+            self.sample_rate = int(sample_rate)
+            self.chunk_frames = int(chunk_frames)
+            self.lib.openmpt_module_create_from_memory.restype = ctypes.c_void_p
+            self.lib.openmpt_module_create_from_memory.argtypes = [
+                ctypes.c_void_p, ctypes.c_size_t, ctypes.c_void_p, ctypes.c_void_p,
+                ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_int),
+                ctypes.POINTER(ctypes.c_char_p), ctypes.c_void_p]
+            self.lib.openmpt_module_read_interleaved_stereo.restype = ctypes.c_size_t
+            self.lib.openmpt_module_read_interleaved_stereo.argtypes = [
+                ctypes.c_void_p, ctypes.c_int32, ctypes.c_size_t,
+                ctypes.POINTER(ctypes.c_int16)]
+            self.lib.openmpt_module_set_repeat_count.argtypes = [ctypes.c_void_p, ctypes.c_int32]
+            self.lib.openmpt_module_destroy.argtypes = [ctypes.c_void_p]
+            with open(filename, "rb") as source:
+                self.module_data = source.read()
+            data_buffer = ctypes.create_string_buffer(self.module_data)
+            error = ctypes.c_int(0)
+            error_message = ctypes.c_char_p()
+            self.module = self.lib.openmpt_module_create_from_memory(
+                data_buffer, len(self.module_data), None, None, None, None,
+                ctypes.byref(error), ctypes.byref(error_message), None)
+            self._data_buffer = data_buffer  # Keep backing memory alive.
+            if not self.module:
+                detail = error_message.value.decode("utf-8", "replace") if error_message.value else str(error.value)
+                raise RuntimeError("libopenmpt no pudo abrir el MOD: " + detail)
+            self.lib.openmpt_module_set_repeat_count(self.module, -1)
+
+        def render(self):
+            samples = (ctypes.c_int16 * (self.chunk_frames * 2))()
+            frames = self.lib.openmpt_module_read_interleaved_stereo(
+                self.module, self.sample_rate, self.chunk_frames, samples)
+            if not frames:
+                return bytes(self.chunk_frames * 4)
+            return ctypes.string_at(ctypes.addressof(samples), frames * 4)
+
+        def close(self):
+            if self.module:
+                self.lib.openmpt_module_destroy(self.module)
+                self.module = None
+
     def start_music():
-        """Sixteen evolving four-bar Goa/psytrance patterns, generated as PCM."""
+        """Play the MOD through a PCM renderer; the exact rendered PCM drives VFX."""
         LD = LcdDemo
         if LD.music_attempted:
-            if LD.music_sound is not None:
-                try:
-                    if LD.music_channel is None or not LD.music_channel.get_busy():
-                        LD.music_channel = LD.music_sound.play(loops=-1)
-                        if LD.music_channel:
-                            LD.music_channel.set_volume(0.78)
-                except pygame.error:
-                    pass
             return
         LD.music_attempted = True
         try:
             if not pygame.mixer.get_init():
                 pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=1024)
-            spec = pygame.mixer.get_init()
-            if not spec:
-                return
-            rate, sample_size, channels = spec
-            if sample_size != -16 or channels not in (1, 2):
-                return
-            bpm = 144.0
-            dt = 1.0 / rate
-            step_len = 60.0 / bpm / 4.0
-            bars_per_pattern = 4
-            pattern_count = 16
-            steps = pattern_count * bars_per_pattern * 16
-            samples = int(steps * step_len * rate)
-            tau = math.tau
+            if not pygame.mixer.get_init():
+                raise RuntimeError("No se pudo inicializar pygame.mixer")
+            base = os.path.dirname(os.path.abspath(__file__))
+            candidates = [os.path.join("resources", "demo.mod"),
+                          os.path.join(base, "resources", "demo.mod"),
+                          os.path.join(base, "demo.mod")]
+            mod_path = next((path for path in candidates if os.path.isfile(path)), None)
+            if not mod_path:
+                raise FileNotFoundError("No se encuentra resources/demo.mod ni demo.mod")
+            pygame.mixer.music.load(mod_path if 'mod_path' in locals() else "resources/demo.mod")
+            pygame.mixer.music.set_volume(0.78)
+            pygame.mixer.music.play(-1)
+            set_post_mix(LD.capture_mixer_audio)
+        except Exception as fallback_exc:
+            LD.audio_capture_error = " | fallback: " + repr(fallback_exc)
+            print("[AUDIO] ERROR fallback:", repr(fallback_exc))
 
-            def hz(note):
-                return 440.0 * (2.0 ** ((note - 69) / 12.0))
+    def render_mod_audio():
+        """Render, queue and return the same PCM block used by the visual analyzer."""
+        LD = LcdDemo
+        if LD.mod_renderer is None or LD.mod_channel is None:
+            return None
+        # Do not advance the MOD decoder faster than the audio device consumes
+        # buffers. Otherwise frames would be analyzed even though they are dropped.
+        if LD.mod_channel.get_busy() and LD.mod_channel.get_queue() is not None:
+            return LD.mod_last_pcm
+        pcm = LD.mod_renderer.render()
+        try:
+            sound = pygame.mixer.Sound(buffer=pcm)
+            if not LD.mod_channel.get_busy():
+                LD.mod_channel.play(sound)
+            else:
+                LD.mod_channel.queue(sound)
+        except pygame.error as exc:
+            LD.audio_capture_error = "No se pudo enviar PCM al mixer: " + repr(exc)
+        LD.mod_last_pcm = pcm
+        return pcm
 
-            roots = (49,45,47,45,49,45,47,52,49,45,47,45,49,45,47,47)
-            scale = (5,0,3,5,7,8,10)            
-            shapes = ((0,0,6,0,0,6,0,6),(0,0,6,0,0,6,0,0),
-                      (6,0,0,6,0,0,6,0),(0,6,0,0,6,0,0,6))
-            kick=[False]*steps; hat=[False]*steps; ohat=[False]*steps
-            snare=[False]*steps; bass=[None]*steps; lead=[None]*steps
-            for st in range(steps):
-                pat=st//64; bar=(st//16)%4; pos=st%16
-                if pos%4==0 or (pat%4==3 and bar==3 and pos==15): kick[st]=True
-                if pos%4==2: hat[st]=True
-                if pos in (6,14) and (bar in (1,3) or pat%4==2): ohat[st]=True
-                if pos in (4,12): snare[st]=True
-                bass[st]=hz(roots[pat]-24)
-                if pos in (2,3,4,6,10,14): bass[st]=hz(roots[pat]-12)
-                if pos==0 or (pos+pat)%16 in [1,3,7,11] or pos%4==2 or (pat%4==3 and pos in (7,15)):
-                    deg=shapes[pat%4][(pos//2+bar)%8]
-                    note=roots[pat]+(12 if pos%4==2 else 16 if pos>0 else -12)#+scale[deg]+(12 if pos in (6,14) and pat%2 else 0)
-                    lead[st]=hz(note)
+    def set_audio_provider(provider):
+        """Install a future native synth/audio engine without changing any scene.
 
-            pcm=array('h')
-            ka=ha=oa=sa=ba=la=99.0
-            bf=lf=bp=lp=0.0
-            noise_state=0x4A17C3
-            last=-1
-            for n in range(samples):
-                t=n*dt
-                st=min(steps-1,int(t/step_len))
-                if st!=last:
-                    if kick[st]: ka=0.0
-                    if hat[st]: ha=0.0
-                    if ohat[st]: oa=0.0
-                    if snare[st]: sa=0.0
-                    if bass[st] is not None: bf=bass[st]; ba=0.0; bp=0.0
-                    if lead[st] is not None: lf=lead[st]; la=0.0; lp=0.0
-                    last=st
-                k=0.0
-                if ka<0.34:
-                    phase=tau*(48*ka+(105/28)*(1-math.exp(-ka*28)))
-                    k=math.sin(phase)*math.exp(-ka*10.5)*0.98
-                noise_state=(1664525*noise_state+1013904223)&0xFFFFFFFF
-                nz=((noise_state>>16)/32768.0)-1.0
-                h=nz*math.exp(-ha*95)*0.22 if ha<0.09 else 0.0
-                oh=nz*math.exp(-oa*19)*0.24 if oa<0.28 else 0.0
-                sn=nz*math.exp(-sa*24)*0.24 if sa<0.22 else 0.0
-                bs=0.0
-                if ba<0.22 and bf:
-                    bp+=tau*bf*dt
-                    saw=2*((bp/tau)%1)-1
-                    bs=(0.52*saw+0.42*math.sin(bp))*math.exp(-ba*17)*0.82
-                ld=0.0
-                if la<0.34 and lf:
-                    lp+=tau*lf*dt
-                    env=math.exp(-la*4.2)
-                    pulse=1.0 if math.sin(lp)>0.18 else -1.0
-                    ld=(0.18*pulse+0.34*math.sin(lp)+0.12*math.sin(lp*2.01))*env
-                pat=st//64
-                shimmer=0.035*math.sin(tau*hz(roots[pat]+19 if pos%1 ==0 else 24)*t)*(0.5+0.5*math.sin(tau*0.5*t))
-                
-                mix=max(-0.96,min(0.96,k*0.86+bs*0.90+h+oh+sn+ld*0.42+shimmer))
-                pan=math.sin(tau*(0.035+(pat%3)*0.006)*t)
-                if channels==2:
-                    pcm.append(int(max(-0.98, min(0.98, mix*(0.90-0.06*pan))) * 32767))
-                    pcm.append(int(max(-0.98, min(0.98, mix*(0.90+0.06*pan))) * 32767))
-                else:
-                    pcm.append(int(mix*32767))
-                ka+=dt; ha+=dt; oa+=dt; sa+=dt; ba+=dt; la+=dt
-            LD.music_sound=pygame.mixer.Sound(buffer=pcm.tobytes())
-            LD.music_channel=LD.music_sound.play(loops=-1)
-            if LD.music_channel: LD.music_channel.set_volume(0.78)
-        except (pygame.error, ValueError, OverflowError, MemoryError):
-            LD.music_sound=None
-            LD.music_channel=None
+        provider(now_seconds) may return interleaved signed-16 PCM bytes, or
+        a dict with pcm, sample_rate and channels. Return None to use mixer capture.
+        """
+        if provider is not None and not callable(provider):
+            raise TypeError("audio provider must be callable or None")
+        LcdDemo.audio_provider = provider
+
+    def pause_music():
+        """Pause MOD playback."""
+        if LcdDemo.mod_channel is not None:
+            LcdDemo.mod_channel.pause()
+        elif pygame.mixer.get_init():
+            pygame.mixer.music.pause()
+
+    def resume_music():
+        """Resume paused MOD playback."""
+        if LcdDemo.mod_channel is not None:
+            LcdDemo.mod_channel.unpause()
+        elif pygame.mixer.get_init():
+            pygame.mixer.music.unpause()
+
+    def stop_music():
+        """Stop MOD playback."""
+        if LcdDemo.mod_channel is not None:
+            LcdDemo.mod_channel.stop()
+        if pygame.mixer.get_init():
+            pygame.mixer.music.stop()
+
+    def set_music_volume(volume):
+        """Set MOD playback volume (0.0 to 1.0)."""
+        value = max(0.0, min(1.0, float(volume)))
+        if LcdDemo.mod_channel is not None:
+            LcdDemo.mod_channel.set_volume(value)
+        elif pygame.mixer.get_init():
+            pygame.mixer.music.set_volume(value)
 
     def init(lcd):
         LcdDemo.lcd     = lcd
@@ -236,7 +530,7 @@ class LcdDemo(object):
     fire_heat = None
     fire_last_update = -100000
 
-    def fire_scene():
+    def demo_fire_scene():
         """Cellular-automata fire, refreshed at approximately 30 fps."""
         g = LcdDemo.pixel_canvas()
         h, w = g.height, g.width
@@ -267,7 +561,7 @@ class LcdDemo(object):
                     g.plot(x, y)
         return LcdDemo.pixel_pack(g)
 
-    def fireworks_scene():
+    def demo_fireworks_scene():
         """Several looping pixel fireworks with rising sparks and expanding bursts."""
         g = LcdDemo.pixel_canvas()
         w, h = g.width, g.height
@@ -301,7 +595,7 @@ class LcdDemo(object):
                         g.line(tx, ty, x, y)
         return g.get()
 
-    def starfield_scene():
+    def demo_starfield_scene():
         """Perspective starfield with expanding streaks."""
         import math
         g=LcdDemo.pixel_canvas(); h,w=len(g),len(g[0]); cx,cy=(w-1)/2,(h-1)/2
@@ -315,7 +609,7 @@ class LcdDemo(object):
             if z>.78: LcdDemo.pixel_line(g,x-math.cos(a)*2,y-math.sin(a),x,y)
         return LcdDemo.pixel_pack(g)
 
-    def geometry_scene():
+    def demo_geometry_scene():
         """Cube, torus and pyramid: grow, spin, then leave the screen."""
         g = LcdDemo.pixel_canvas()
         h, w = g.height, g.width
@@ -421,7 +715,7 @@ class LcdDemo(object):
             g.plot(w/2 + shift_x, h/2 + shift_y)
         return g.get()
 
-    def pong_scene():
+    def demo_pong_scene():
         """Compact animated Pong match, rasterized at full subpixel resolution."""
         g = LcdDemo.pixel_canvas()
         h, w = g.height, g.width
@@ -450,13 +744,13 @@ class LcdDemo(object):
         LcdDemo.pixel_circle(g, bx, by, 1.15, 1.15, True)
         return LcdDemo.pixel_pack(g)
 
-    def vu_vertical_scene():
+    def vfx_vu_vertical_scene():
         """Two stereo level bars with a V-shaped peak pointer above each."""
         g = LcdDemo.pixel_canvas(max(1, LcdDemo.rows - 1))
         w, h = g.width, g.height
-        t = LcdDemo.now * .001
+        audio = LcdDemo.audio
         for channel, cy in enumerate((h * .30, h * .78)):
-            level = .18 + .78 * (.5 + .5 * math.sin(t * 2.7 + channel * 1.15))
+            level = audio.channel_levels[channel]
             extent = max(2, min(w - 3, int(level * (w - 2))))
             y = int(cy)
             for x in range(1, w - 1):
@@ -474,11 +768,11 @@ class LcdDemo(object):
         return LcdDemo.pixel_pack(g)
 
 
-    def vu_horizontal_scene():
+    def vfx_vu_horizontal_scene():
         """Two compact analogue needle meters, left and right."""
         g = LcdDemo.pixel_canvas(max(1, LcdDemo.rows - 1))
         w, h = g.width, g.height
-        t = LcdDemo.now * .001
+        audio = LcdDemo.audio
         bands = ((0, h//2-1), (h//2, h-1))
         for channel, (top, bottom) in enumerate(bands):
             cx, cy = w * .5, bottom - .5
@@ -491,7 +785,7 @@ class LcdDemo(object):
                     g.line(cx + math.cos(a)*rx*.88, cy + math.sin(a)*ry*.88, px, py)
                 else:
                     g.plot(px, py)
-            value = .5 + .43 * math.sin(t * 2.1 + channel * 1.4)
+            value = audio.channel_levels[channel * 6]
             angle = math.pi + (1.0-value) * math.pi
             g.line(cx, cy, cx + math.cos(angle)*rx*.82,
                    cy + math.sin(angle)*ry*.82)
@@ -499,11 +793,11 @@ class LcdDemo(object):
         return LcdDemo.pixel_pack(g)
 
 
-    def vu_12_scene():
+    def vfx_vu_12_scene():
         """Twelve animated EMX-style channels: six drum parts and six synth parts."""
         g = LcdDemo.pixel_canvas(max(1, LcdDemo.rows - 1))
         w, h = g.width, g.height
-        t = LcdDemo.now * 0.001
+        audio = LcdDemo.audio
         count = 12
         margin = 2
         gap = 1
@@ -513,12 +807,7 @@ class LcdDemo(object):
             group_offset = 1 if channel >= 6 else 0
             x0 = margin + channel * (bar_w + gap) + group_offset
             x1 = min(w - 1, x0 + bar_w - 2)
-            # Drums have punchier envelopes; synth parts have smoother motion.
-            if channel < 6:
-                pulse = max(0.12, math.sin(t * (3.4 + channel * .12) + channel * 1.8) ** 8)
-                level = 0.12 + 0.86 * pulse
-            else:
-                level = 0.20 + 0.70 * (0.5 + 0.5 * math.sin(t * (1.7 + channel * .07) + channel * .92))
+            level = audio.channel_levels[channel]
             bar_h = max(1, int(level * (h - 2)))
             # A two-pixel footprint with a clear empty gap between channels.
             for x in range(x0, max(x0 + 1, x1 + 1)):
@@ -540,9 +829,9 @@ class LcdDemo(object):
     velocity_steps = [112, 76, 98, 42, 120, 64, 88, 24,
                       104, 56, 126, 72, 36, 92, 60, 116]
 
-    def velocity_scene():
+    def vfx_velocity_visualizer_scene():
         """Sixteen velocity columns: 2 pixels wide x 8 pixels high."""
-        values = list(LcdDemo.velocity_steps[:16])
+        values = list(LcdDemo.audio.velocity_steps[:16])
         values += [0] * (16 - len(values))
         g = LcdDemo.pixel_canvas(max(1, LcdDemo.rows - 1))
         h, w = g.height, g.width
@@ -557,20 +846,19 @@ class LcdDemo(object):
                     g.plot(x, y)
         return g.get()
 
-    def waveform_scene():
+    def vfx_oscilloscope_scene():
         """Oscilloscope waveform in the four-row mixed-mode display area."""
-        import math
         g=LcdDemo.pixel_canvas(max(1, LcdDemo.rows - 1)); h,w=len(g),len(g[0]); mid=(h-1)/2; amp=max(.7,h*.46); prev=None
-        t=LcdDemo.now*.001
+        waveform = LcdDemo.audio.waveform
         for x in range(w):
-            p=x/max(1,w-1)*math.tau*2
-            s=(math.sin(p+t*2.8)+.34*math.sin(2*p-t*1.7)+.16*math.sin(5*p+t*.8))
-            s*=.66+.34*math.sin(t*.7+p*.18); y=mid-s*amp
+            index = int(x * (len(waveform) - 1) / max(1, w - 1))
+            s = waveform[index]
+            y=mid-s*amp*2.2
             if prev is not None: LcdDemo.pixel_line(g,x-1,prev,x,y)
             LcdDemo.pixel_put(g,x,y); prev=y
         return LcdDemo.pixel_pack(g)
 
-    def sample_scene():
+    def vfx_sample_waveform_scene():
         """Instrument sample viewer: waveform above, scrolling filename below."""
         lcd = LcdDemo.lcd
 
@@ -579,23 +867,12 @@ class LcdDemo(object):
         g = lcd.raster
         lcd.clear()
         w, h = g.width, g.height
-        t = LcdDemo.now * 0.001
-
-        # A sustained, harmonically rich instrument sample (not a decaying
-        # kick): a warm analogue string/pad with a short attack and release.
+        waveform = LcdDemo.audio.sample_waveform
         previous_y = None
         mid = (h - 1) * 0.5
         for x in range(w):
-            phase = x / float(max(1, w - 1))
-            angle = phase * math.tau * 7.0
-            attack = min(1.0, phase * 12.0)
-            release = min(1.0, max(0.0, (1.0 - phase) * 9.0))
-            envelope = min(attack, release)
-            signal = (math.sin(angle) +
-                      0.48 * math.sin(2.0 * angle + 0.25) +
-                      0.22 * math.sin(3.0 * angle + 0.7) +
-                      0.09 * math.sin(5.0 * angle + 0.1)) / 1.79
-            signal *= envelope
+            index = int(x * (len(waveform) - 1) / float(max(1, w - 1)))
+            signal = waveform[index]
             y = max(0, min(h - 1, mid - signal * (h * 0.46)))
             if previous_y is not None:
                 g.line(x - 1, previous_y, x, y)
@@ -603,7 +880,7 @@ class LcdDemo(object):
             previous_y = y
 
         # Playback cursor moves through the displayed sample and loops.
-        playhead_x = int(((t * 0.18) % 1.0) * max(1, w - 1))
+        playhead_x = int(((LcdDemo.audio.time * 0.18) % 1.0) * max(1, w - 1))
         g.line(playhead_x, 0, playhead_x, h - 1)
 
         # The text buffer is exactly one small-font line under the raster.
@@ -619,7 +896,7 @@ class LcdDemo(object):
         return None
 
 
-    def image_scene():
+    def demo_smiley_scene():
         """Bouncing happy face with a genuine frame-by-frame negative-video strobe."""
         g = LcdDemo.pixel_canvas()
         w, h = g.width, g.height
@@ -725,7 +1002,7 @@ class LcdDemo(object):
         " ":("000","000","000","000","000")
     }
 
-    def big_text_scene():
+    def demo_big_text_scene():
         """Bumping bitmap text: each letter has its own 3D sine motion."""
         g = LcdDemo.pixel_canvas()
         message = "  PIXEL POWER / LCD DEMO / 64X20  "
@@ -741,6 +1018,7 @@ class LcdDemo(object):
             # Independent vertical bob, depth/size breathing and lateral wobble.
             phase = t * 2.0 + index * 0.73
             scale = 0.58 + 0.92 * (0.5 + 0.5 * math.sin(phase * 0.82))
+            scale = 0.58 + 2.42 * (0.5 + 0.5 * math.sin(phase * 0.82))
             y_shift = math.sin(phase * 1.31) * max(1.0, g.height * 0.17)
             x_shift = math.sin(phase * 0.91 + 0.6) * 1.8
             x0 = cursor + x_shift
@@ -761,7 +1039,7 @@ class LcdDemo(object):
             cursor += base_advance
         return g.get()
 
-    def piano_roll_scene():
+    def menu_piano_roll_scene():
         """Piano roll with mirrored keyboard at the left edge and blinking selected note."""
         g = LcdDemo.pixel_canvas()
         w, h = g.width, g.height
@@ -798,34 +1076,43 @@ class LcdDemo(object):
             for y in range(h):
                 if y % 3 == 0:
                     g.plot(x, y)
-        notes = [(0,7,3),(0,4,2),(2,9,2),(3,6,2),(4,10,3),(5,2,2),
-                 (7,7,2),(8,3,3),(9,8,2),(10,5,2),(12,11,2),(13,4,2),(14,9,2)]
-        step_w = grid_w / 16.0
-        selected = (int(LcdDemo.phase * 1.2) % len(notes))
-        for ni, (step, pitch, length) in enumerate(notes):
+        audio = LcdDemo.audio
+        notes = audio.note_sequence
+        beats_per_bar = audio.sequencer["beats_per_bar"]
+        total_beats = beats_per_bar * 4
+        step_w = grid_w / float(total_beats)
+        selected = int(audio.sequencer["position_beats"] * 2) % max(1, len(notes))
+        for ni, note in enumerate(notes):
+            step, pitch, length = note["start"], note["pitch"], note["duration"]
+            lane = pitch % 12
             x0 = keyboard_w + int(round(step * step_w)) + 1
             x1 = min(w - 1, keyboard_w + int(round((step + length) * step_w)) - 1)
-            y0 = int(round((11 - pitch) * lane_h))
-            y1 = min(h - 1, int(round((12 - pitch) * lane_h)) - 1)
+            y0 = int(round((11 - lane) * lane_h))
+            y1 = min(h - 1, int(round((12 - lane) * lane_h)) - 1)
             visible = ni != selected or (int(LcdDemo.now / 180) % 2 == 0)
             if visible:
                 for y in range(y0, y1 + 1):
                     for x in range(x0, x1 + 1):
                         g.plot(x, y)
-        playhead = keyboard_w + int(round((int(LcdDemo.phase * 2) % 16) * step_w))
+        playhead_beat = audio.sequencer["position_beats"] % total_beats
+        playhead = keyboard_w + int(round(playhead_beat * step_w))
         for y in range(h):
             g.plot(playhead, y)
         return g.get()
 
-    def eq_scene():
+    def menu_equalizer_scene():
         """Eight clear EQ handles connected by one editable-looking curve."""
         g = LcdDemo.pixel_canvas(max(1, LcdDemo.rows - 1))
         w, h = g.width, g.height
-        t = LcdDemo.now * 0.001
+        audio = LcdDemo.audio
         count = 8
         baseline = h // 2
         centers = [int(round(i * (w - 1) / float(count - 1))) for i in range(count)]
-        gains = [0.48 * math.sin(t * 0.42 + i * 0.91) for i in range(count)]
+        gains = [
+            (audio.filter["cutoff"] - .5) * 1.4 *
+            math.exp(-abs(i - 4) * (1.0 - audio.filter["resonance"]) * .55)
+            for i in range(count)
+        ]
         points = []
         for i, x in enumerate(centers):
             y = max(1, min(h - 2, int(round(baseline - gains[i] * (h * 0.72)))))
@@ -844,7 +1131,7 @@ class LcdDemo(object):
         lcd._demo_enabled = True
         return g.get()
 
-    def file_browser_scene():
+    def menu_file_browser_scene():
         """Minimal file browser: one compact path row and four entries."""
         lcd = LcdDemo.lcd
         files = [
@@ -872,7 +1159,7 @@ class LcdDemo(object):
         lcd.buffer = rows[:5]
         return rows[:5]
 
-    def keyboard_scene():
+    def menu_keyboard_scene():
         """Spanish virtual keyboard; fixed 32-column layout with a dedicated space key slot."""
         lcd = LcdDemo.lcd
         upper = ["  A B C Ç D E F G H I J K L M  ",
@@ -905,7 +1192,7 @@ class LcdDemo(object):
         lcd.buffer = [*rendered, entered, LcdDemo.fit(footer, 32)]
         return lcd.buffer
 
-    def cassette_scene():
+    def menu_cassette_scene():
         """Large edge-to-edge cassette with animated reels and sampling status."""
         g = LcdDemo.pixel_canvas()
         w, h = g.width, g.height
@@ -968,7 +1255,7 @@ class LcdDemo(object):
         lcd._demo_enabled = True
         return g.get()
 
-    def metaballs_scene():
+    def demo_metaballs_scene():
         """Organic metaballs merging and separating in a monochrome field."""
         g = LcdDemo.pixel_canvas()
         w, h = g.width, g.height
@@ -998,7 +1285,7 @@ class LcdDemo(object):
     tetris_piece_index = 0
     tetris_last_lateral = -100000
 
-    def tetris_scene():
+    def demo_tetris_scene():
         """Full-screen Tetris rotated 90 degrees: pieces travel left to right."""
         g = LcdDemo.pixel_canvas()
         w, h = g.width, g.height
@@ -1083,7 +1370,7 @@ class LcdDemo(object):
     snake_food = None
     snake_last_step = -100000
 
-    def snake_scene():
+    def demo_snake_scene():
         """Self-playing Snake with a growing body and animated food target."""
         g = LcdDemo.pixel_canvas()
         w, h = g.width, g.height
@@ -1139,7 +1426,7 @@ class LcdDemo(object):
     snow_pile = None
     snow_last_update = -100000
 
-    def snow_scene():
+    def demo_snow_scene():
         """Snow collides with actual EMX glyph pixels, rolls off edges and piles on ground."""
         g = LcdDemo.pixel_canvas()
         w, h = g.width, g.height
@@ -1238,7 +1525,7 @@ class LcdDemo(object):
         return g.get()
 
 
-    def fractal_scene():
+    def demo_fractal_scene():
         """Classic Mandelbrot set with a continuous, looping deep zoom."""
         g = LcdDemo.pixel_canvas()
         w, h = g.width, g.height
@@ -1264,7 +1551,7 @@ class LcdDemo(object):
                     g.plot(px, py)
         return g.get()
 
-    def hypercube_scene():
+    def demo_hypercube_scene():
         """A rotating tesseract projected from four dimensions into the LCD."""
         g = LcdDemo.pixel_canvas()
         w, h = g.width, g.height
@@ -1309,7 +1596,7 @@ class LcdDemo(object):
         g.circle(px, py, 1.4, 1.4, filled=True)
         return g.get()
 
-    def staff_scene():
+    def menu_staff_editor_scene():
         """Magnified stave with notes snapped to lines/spaces and a playback scanline."""
         g = LcdDemo.pixel_canvas()
         w, h = g.width, g.height
@@ -1321,23 +1608,32 @@ class LcdDemo(object):
         for y in line_ys:
             if 0 <= y < h:
                 g.line(0, y, w-1, y)
-        # Every note is locked to a staff line or the exact space halfway between.
-        note_steps = [0, 1, 2, 3, 4, 5, 4, 3, 2, 1, 0, 2]
-        for i, step in enumerate(note_steps):
-            x = 5 + i * 5
-            y = base + step * (spacing / 2.0)
-            if -1 <= y < h:
+        # Read the exact same MIDI events and transport clock as the piano roll.
+        audio = LcdDemo.audio
+        notes = audio.note_sequence
+        total_beats = audio.sequencer["beats_per_bar"] * 4
+        # MIDI semitones mapped to diatonic staff steps from middle C.
+        chromatic_to_diatonic = {0: 0, 1: 0, 2: 1, 3: 2, 4: 2, 5: 3,
+                                 6: 3, 7: 4, 8: 5, 9: 5, 10: 6, 11: 6}
+        for i, note in enumerate(notes):
+            midi = int(note["pitch"])
+            octave, semitone = divmod(midi - 60, 12)
+            diatonic = octave * 7 + chromatic_to_diatonic[semitone]
+            x = int(3 + (note["start"] / total_beats) * (w - 6))
+            y = base + (4 - diatonic) * (spacing / 2.0)
+            if 0 <= x < w and -2 <= y < h + 2:
                 g.circle(x, y, 1.8, 1.25, filled=True)
-                # Stems alternate direction but remain attached to noteheads.
-                stem_dir = -1 if i % 2 == 0 else 1
+                # Stems are derived from the same event pitch, not a second melody.
+                stem_dir = -1 if diatonic >= 0 else 1
                 g.line(x + 1, y, x + 1, y + stem_dir * 6)
-        # A moving vertical scanline marks playback position.
-        scan_x = int(t * 7.0) % w
+        # Shared transport position: identical musical phase in both views.
+        scan_x = int((audio.sequencer["position_beats"] % total_beats) /
+                     total_beats * w)
         g.line(scan_x, 0, scan_x, h-1)
         return g.get()
 
 
-    def wormhole_scene():
+    def demo_wormhole_scene():
         """Widely spaced sine/cosine wormhole with a roller-coaster centreline."""
         g = LcdDemo.pixel_canvas()
         w, h = g.width, g.height
@@ -1376,7 +1672,7 @@ class LcdDemo(object):
                 prev = pt
         return g.get()
 
-    def music_polygon_scene():
+    def vfx_music_polygon_scene():
         """Audio-reactive polygon with one simulated frequency per vertex."""
         g = LcdDemo.pixel_canvas()
         w, h = g.width, g.height
@@ -1405,7 +1701,7 @@ class LcdDemo(object):
         g.circle(cx, cy, 1.3, 1.3, filled=True)
         return g.get()
 
-    def emx_logo_3d_scene():
+    def demo_emx_logo_3d_scene():
         """Large extruded EMX lettering rotating as a single 3D object."""
         g = LcdDemo.pixel_canvas()
         w, h = g.width, g.height
@@ -1456,7 +1752,7 @@ class LcdDemo(object):
             g.line(*projected[a],*projected[b])
         return g.get()
 
-    def travelling_3d_scene():
+    def demo_travelling_3d_scene():
         """First-person 3D maze: walls, floor grid and visible approaching obstacles."""
         g = LcdDemo.pixel_canvas()
         w, h = g.width, g.height
@@ -1501,7 +1797,7 @@ class LcdDemo(object):
             g.line(centre_x, top_y - wall_h * .22, right, top_y)
         return g.get()
 
-    def circle_scene():
+    def demo_orbiting_circle_scene():
         """Orbiting circle with subpixel resolution."""
         import math
         g=LcdDemo.pixel_canvas(); h,w=len(g),len(g[0]); t=LcdDemo.now*.001
@@ -1515,6 +1811,41 @@ class LcdDemo(object):
         lcd = LD.lcd
         LD.start_music()
         LD.now = pygame.time.get_ticks() - LD.music_delay
+        audio_now = LD.now * 0.001
+        if LD.audio_provider is not None:
+            supplied = LD.audio_provider(audio_now)
+            if isinstance(supplied, dict):
+                LD.audio.ingest_pcm(supplied.get("pcm", b""), audio_now,
+                                    supplied.get("sample_rate", 22050),
+                                    supplied.get("channels", 2))
+            elif supplied is not None:
+                LD.audio.ingest_pcm(supplied, audio_now, 22050, 2)
+            else:
+                LD.audio.ingest_pcm(b"", audio_now)
+        elif LD.mod_renderer is not None:
+            pcm = LD.render_mod_audio()
+            if pcm:
+                mixer_info = pygame.mixer.get_init() or (22050, -16, 2)
+                LD.audio.ingest_pcm(pcm, audio_now, mixer_info[0], 2)
+            else:
+                LD.audio.ingest_pcm(b"", audio_now)
+        elif LD.captured_pcm is not None:
+            pcm, LD.captured_pcm = LD.captured_pcm, None
+            mixer_info = pygame.mixer.get_init() or (22050, -16, 2)
+            # CAMBIA ESTA LÍNEA: Cambia 'max(1, mixer_info[2])' por un '2' rígido
+            LD.audio.ingest_pcm(pcm, audio_now, mixer_info[0], 2)
+        else:
+            # No output tap available: show silence rather than fabricated audio.
+            LD.audio.ingest_pcm(b"", audio_now)
+        if not LD.audio_debug_reported:
+            print("[AUDIO] diagnóstico:",
+                  "renderer=", bool(LD.mod_renderer),
+                  "channel=", bool(LD.mod_channel),
+                  "captured_bytes=", len(LD.captured_pcm or b""),
+                  "wave_peak=", round(LD.audio.peak, 5),
+                  "rms=", round(LD.audio.rms, 5),
+                  "error=", LD.audio_capture_error)
+            LD.audio_debug_reported = True
         time = (LD.now - lcd._demo_started) / 1000.0
         LD.frame = int(time * 16)
         lcd._demo_frame = LD.frame
@@ -1556,6 +1887,10 @@ class LcdDemo(object):
         # IDs are kept stable so the dispatcher and per-scene state remain intact.
         schedule = [
             # 1. EMX-1 3D logo
+            (10, 6.5),
+            (4, 6.5), (5, 6.5), (20, 12.0), (6, 6.5), (7, 6.5),
+            (8, 6.5), (14, 9.0), (15, 9.0), (16, 9.0), (17, 9.0),
+            (18, 9.0), (23, 12.0),
             (29, 12.0),
 
             # 2. Character / typography tests
@@ -1603,65 +1938,65 @@ class LcdDemo(object):
             lcd._demo_enabled = True
 
         if LD.scene == 0:
-            LD.fire_scene()
+            LD.demo_fire_scene()
         elif LD.scene == 31:
-            LD.fireworks_scene()
+            LD.demo_fireworks_scene()
         elif LD.scene == 1:
-            LD.starfield_scene()
+            LD.demo_starfield_scene()
         elif LD.scene == 2:
-            LD.geometry_scene()
+            LD.demo_geometry_scene()
         elif LD.scene == 3:
-            LD.pong_scene()
+            LD.demo_pong_scene()
         elif LD.scene == 4:
-            synth_screen(LD.vu_vertical_scene)
+            synth_screen(LD.vfx_vu_vertical_scene)
         elif LD.scene == 5:
-            synth_screen(LD.vu_horizontal_scene)
+            synth_screen(LD.vfx_vu_horizontal_scene)
         elif LD.scene == 20:
-            synth_screen(LD.vu_12_scene, footer=("DRUMS 1-6", "EMX-1 / 12 PART", "SYNTH 1-6"))
+            synth_screen(LD.vfx_vu_12_scene, footer=("DRUMS 1-6", "EMX-1 / 12 PART", "SYNTH 1-6"))
         elif LD.scene == 6:
-            synth_screen(LD.waveform_scene)
+            synth_screen(LD.vfx_oscilloscope_scene)
         elif LD.scene == 7:
-            LD.sample_scene()
+            LD.vfx_sample_waveform_scene()
         elif LD.scene == 8:
-            synth_screen(LD.velocity_scene)
+            synth_screen(LD.vfx_velocity_visualizer_scene)
         elif LD.scene == 9:
-            LD.image_scene()
+            LD.demo_smiley_scene()
         elif LD.scene == 10:
-            LD.big_text_scene()
+            LD.demo_big_text_scene()
         elif LD.scene == 11:
-            LD.circle_scene()
+            LD.demo_orbiting_circle_scene()
         elif LD.scene == 14:
-            LD.piano_roll_scene()
+            LD.menu_piano_roll_scene()
         elif LD.scene == 15:
-            LD.eq_scene()
+            LD.menu_equalizer_scene()
         elif LD.scene == 16:
-            LD.file_browser_scene()
+            LD.menu_file_browser_scene()
         elif LD.scene == 17:
-            LD.keyboard_scene()
+            LD.menu_keyboard_scene()
         elif LD.scene == 18:
-            LD.cassette_scene()
+            LD.menu_cassette_scene()
         elif LD.scene == 19:
-            LD.fractal_scene()
+            LD.demo_fractal_scene()
         elif LD.scene == 21:
-            LD.hypercube_scene()
+            LD.demo_hypercube_scene()
         elif LD.scene == 22:
-            LD.snow_scene()
+            LD.demo_snow_scene()
         elif LD.scene == 23:
-            LD.staff_scene()
+            LD.menu_staff_editor_scene()
         elif LD.scene == 24:
-            synth_screen(LD.metaballs_scene, footer=("METABALLS", "ORGANIC FIELD", "EMX-1"))
+            synth_screen(LD.demo_metaballs_scene, footer=("METABALLS", "ORGANIC FIELD", "EMX-1"))
         elif LD.scene == 25:
-            LD.tetris_scene()
+            LD.demo_tetris_scene()
         elif LD.scene == 26:
-            LD.snake_scene()
+            LD.demo_snake_scene()
         elif LD.scene == 27:
-            LD.wormhole_scene()
+            LD.demo_wormhole_scene()
         elif LD.scene == 28:
-            LD.music_polygon_scene()
+            LD.vfx_music_polygon_scene()
         elif LD.scene == 29:
-            LD.emx_logo_3d_scene()
+            LD.demo_emx_logo_3d_scene()
         elif LD.scene == 30:
-            LD.travelling_3d_scene()
+            LD.demo_travelling_3d_scene()
         elif LD.scene == 12:
             lcd.buffer = LD.lines([
                 LD.center("PIXEL GLYPH TEST"), LD.fit("0123456789"),
