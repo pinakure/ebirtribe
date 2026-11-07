@@ -1,3 +1,12 @@
 *.pyc
 *.rx2
 /resources/mockups
+/markdown
+blackboard.txt
+/vst/Builds/LinuxMakefile
+/vst/Builds/VisualStudio2022/.vs
+/vst/Builds
+/vst/JuceLibraryCode
+vst/Resources/magic.sav(2).xml
+vst/Resources/magic.sav(3).xml
+vst/Resources/magic.sav.xml
