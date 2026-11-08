@@ -3,19 +3,17 @@
 #include <JuceHeader.h>
 #include <foleys_gui_magic/foleys_gui_magic.h>
 
-class YourVstAudioProcessor : public foleys::MagicProcessor
-{
+class EMX : public foleys::MagicProcessor{
 public:
-    // MagicProcessor ya proporciona magicState. No declararlo aquí otra vez.
-
-    // Parámetro JUCE visible y conectable desde Foley's GUI Magic.
-    juce::AudioParameterFloat* volumeParameter = nullptr;
+    // Parámetros JUCE visible y conectables desde Foley's GUI Magic.
+    juce::AudioParameterFloat* volume   = nullptr;
+    juce::AudioParameterFloat* panning  = nullptr;
 
     // Motor de audio
     juce::dsp::Oscillator<float> myOscillator;
 
-    YourVstAudioProcessor();
-    ~YourVstAudioProcessor() override;
+    EMX();
+    ~EMX() override;
 
     // Ciclo de vida y procesamiento de audio
     void    initialiseBuilder(foleys::MagicGUIBuilder& builder) override;
@@ -40,7 +38,6 @@ public:
     // Buses de audio
     bool    isBusesLayoutSupported (const BusesLayout& layouts) const override;
 
-
 private:
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (YourVstAudioProcessor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EMX)
 };

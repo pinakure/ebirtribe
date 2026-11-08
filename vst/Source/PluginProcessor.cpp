@@ -2,20 +2,17 @@
 #include "LedItem.h"
 #include <cmath>
 
-YourVstAudioProcessor::YourVstAudioProcessor()
-    : foleys::MagicProcessor (BusesProperties()
-        .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
-        .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
-{
-    // Registrar el parámetro directamente en AudioProcessor.
-    // Foley's GUI Magic lo detecta y puede adjuntar sus controles.
-    addParameter (volumeParameter = new juce::AudioParameterFloat (
-        juce::ParameterID { "volume", 1 },
-        "Volume",
-        0.0f, 1.0f, 0.5f));
+EMX::EMX() : foleys::MagicProcessor (
+        BusesProperties()
+            .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
+            .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
+    ){
 
-    // Permite a Foley's GUI Magic localizar los recursos del proyecto
-    // y gestionar el guardado automático de la interfaz.
+    // Registrar parámetros. Foley's GUI Magic los detecta y puede adjuntar sus controles.    
+    addParameter (volume  = new juce::AudioParameterFloat (juce::ParameterID { "volume"     , 1 },"Volume"  , 0.0f, 1.0f, 0.5f));
+    addParameter (panning = new juce::AudioParameterFloat (juce::ParameterID { "panning"    , 1 },"Panning" , 0.0f, 1.0f, 0.5f));
+
+    // Permite a Foley's GUI Magic localizar los recursos del proyecto y gestionar el guardado automático de la interfaz.
     FOLEYS_SET_SOURCE_PATH(__FILE__);
 
     magicState.setGuiValueTree(
@@ -24,37 +21,25 @@ YourVstAudioProcessor::YourVstAudioProcessor()
     );
 }
 
-YourVstAudioProcessor::~YourVstAudioProcessor(){
-}
-
-void YourVstAudioProcessor::initialiseBuilder(
-    foleys::MagicGUIBuilder& builder)
-{
+void EMX::initialiseBuilder( foleys::MagicGUIBuilder& builder){
     builder.registerJUCEFactories();
     builder.registerJUCELookAndFeels();
 
     builder.registerFactory("LED", &LedItem::factory);
 }
 
-void YourVstAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
-{
+void EMX::prepareToPlay (double sampleRate, int samplesPerBlock){
     juce::dsp::ProcessSpec spec;
-    spec.sampleRate = sampleRate;
-    spec.maximumBlockSize = static_cast<juce::uint32> (samplesPerBlock);
-    spec.numChannels = static_cast<juce::uint32> (getTotalNumOutputChannels());
+    spec.sampleRate         = sampleRate;
+    spec.maximumBlockSize   = static_cast<juce::uint32> (samplesPerBlock);
+    spec.numChannels        = static_cast<juce::uint32> (getTotalNumOutputChannels());
 
     myOscillator.prepare (spec);
     myOscillator.setFrequency (440.0f);
     myOscillator.initialise ([] (float x) { return std::sin (x); });
 }
 
-void YourVstAudioProcessor::releaseResources()
-{
-}
-
-void YourVstAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
-                                          juce::MidiBuffer& midiMessages)
-{
+void EMX::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) {
     juce::ScopedNoDenormals noDenormals;
     const auto totalNumOutputChannels = getTotalNumOutputChannels();
 
@@ -66,13 +51,14 @@ void YourVstAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     juce::dsp::AudioBlock<float> audioBlock (buffer);
     juce::dsp::ProcessContextReplacing<float> context (audioBlock);
+    
     myOscillator.process (context);
 
     // Leer el parámetro que Foley's GUI Magic modifica directamente.
-    const float volume = (volumeParameter != nullptr) ? volumeParameter->get() : 0.5f;
+    const float volume  = (this->volume  != nullptr) ? this->volume->get()  : 0.5f;
+    const float panning = (this->panning != nullptr) ? this->panning->get() : 0.5f;
 
-    for (int channel = 0; channel < totalNumOutputChannels; ++channel)
-    {
+    for (int channel = 0; channel < totalNumOutputChannels; ++channel){
         auto* channelData = buffer.getWritePointer (channel);
 
         for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
@@ -80,12 +66,10 @@ void YourVstAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     }
 }
 
-bool YourVstAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
-{
+bool EMX::isBusesLayoutSupported (const BusesLayout& layouts) const {
     const auto output = layouts.getMainOutputChannelSet();
 
-    if (output != juce::AudioChannelSet::mono()
-        && output != juce::AudioChannelSet::stereo())
+    if (output != juce::AudioChannelSet::mono() && output != juce::AudioChannelSet::stereo()) 
         return false;
 
     if (output != layouts.getMainInputChannelSet())
@@ -94,9 +78,14 @@ bool YourVstAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) 
     return true;
 }
 
-// No definir createEditor() aquí: se utiliza el editor proporcionado por MagicProcessor.
+juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter(){
+    return new EMX();
+}
 
-juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
-{
-    return new YourVstAudioProcessor();
+void EMX::releaseResources(){
+
+}
+
+EMX::~EMX(){
+
 }
