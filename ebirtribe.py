@@ -1,11 +1,7 @@
-import  os
-import warnings
-warnings.filterwarnings(
-    "ignore", 
-    category=UserWarning, 
-    message=".*pkg_resources is deprecated as an API.*"
-)
-os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
+#------------------------------------------------------------------------------
+import os           ; os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
+import warnings     ; warnings.filterwarnings("ignore", category=UserWarning, message=".*pkg_resources is deprecated as an API.*")
+#------------------------------------------------------------------------------
 import  pygame
 import  logo
 import  sys

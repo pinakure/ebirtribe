@@ -542,6 +542,7 @@ class Valve(Widget):
             self.value = 1.0
         app.resources.valve.set_alpha(int(self.value*256))
         app.screen.blit( app.resources.valve, (self.x, self.y), area=(0, 0, width, height))
+        
 class RasterBuffer(object):
     """Pixel buffer packed as Unicode Braille (2 columns x 4 rows per cell)."""
     BRAILLE_BITS = (
@@ -632,23 +633,22 @@ class Lcd(Widget):
     MIXED_MODE = 1
     RASTER_MODE = 2
 
-    def __init__(self, name="UnnamedLcd", x=0, y=0, width=96, height=96,
-                 columns=16, rows=5, skin=0):
-        Lcd._demo = LcdDemo
-        self.columns = int(columns)
-        self.rows = int(rows)
-        self.row_height = (height - 4) // rows
-        self.column_width = (width - 4) // columns
-        self.skin = skin
-        self.color = (255, 128, 0)
-        self.mode = self.TEXT_MODE
-        self._text_lines = ["" for _ in range(rows)]
-        self._line_wide = [False for _ in range(rows)]
-        self.raster = RasterBuffer(self.columns * 4, self.rows * 4)
-        self.functions = ["", "", ""]
-        self._demo_started = pygame.time.get_ticks()
-        self._demo_frame = 0
-        self._demo_enabled = True
+    def __init__(self, name="UnnamedLcd", x=0, y=0, width=96, height=96, columns=16, rows=6, skin=0):
+        Lcd._demo           = LcdDemo
+        self.columns        = int(columns)
+        self.rows           = int(rows)
+        self.row_height     = (height-12) // rows
+        self.column_width   = (width - 4) // columns
+        self.skin           = skin
+        self.color          = (255, 128, 0)
+        self.mode           = self.TEXT_MODE
+        self._text_lines    = ["" for _ in range(rows)]
+        self._line_wide     = [False for _ in range(rows)]
+        self.raster         = RasterBuffer(self.columns * 4, self.rows * 4)
+        self.functions      = ["", "", ""]
+        self._demo_started  = pygame.time.get_ticks()
+        self._demo_frame    = 0
+        self._demo_enabled  = True
         Lcd._demo.init(self)
         super().__init__(Widget.LCD, name, x, y, width, height, 0, 0, 0)
         self.interactive = False
@@ -728,6 +728,7 @@ class Lcd(Widget):
     def render(self, app):
         self.update()
         surface = app.screen
+        pygame.draw.rect( surface, (255, 0, 128), self.rect, 1)
         if self.mode == self.TEXT_MODE:
             lines = self._text_lines
             for row, line in enumerate(lines):
@@ -749,6 +750,7 @@ class Lcd(Widget):
             txt = font.render(line, True, self.color)
             surface.blit(txt, (self.x, self.y + row * self.row_height + font.offset),
                          area=(0, 0, self.width - 8, self.row_height))
+        
 
 class JogWheel(Widget):
     def __init__(self, name="UnnamedJogWheel", x=0, y=0, width=224, height=224, min=0, value=0, max=255):
