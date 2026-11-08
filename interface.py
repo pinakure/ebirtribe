@@ -237,7 +237,7 @@ class Lcds:
     MAIN                = 0x00
     def get():
         return {
-            Lcds.MAIN                   : Lcd('MAIN'      ,  95, 151, 360, 168),
+            Lcds.MAIN                   : Lcd('MAIN'      ,  95, 150, 360, 168),
         }
 
 class CallBacks:    
@@ -356,16 +356,19 @@ class CallBacks:
         print(dir(widget))
 
 CURRENT_SKIN    = 0
-DECK_SKINS      = [ 'deck-blue' , 'deck-red'        , 'deck-pink'       ]
-BUTTON_SKINS    = [ 'buttons'   , 'buttons-orange'  , 'buttons-orange'  ]
+DECK_SKINS      = [ 'blue'  , 'red'     , 'pink'    , 'blue'    ]
+SCROLL_SKINS    = [ 'yellow', 'green'   , 'green'   , 'yellow'  ]
+BUTTON_SKINS    = [ 'red'   , 'yellow'  , 'yellow'  , 'red'     ]
 
 RESOURCES = {
-    'deck'      : f'resources/{DECK_SKINS[ CURRENT_SKIN ]}.png',
+    'deck'      :f'resources/deck-{DECK_SKINS[ CURRENT_SKIN ]}.png',
+    'buttons'   :f'resources/buttons-{BUTTON_SKINS[ CURRENT_SKIN ]}.png',
+    'scroll_v'  :f'resources/scroll-{SCROLL_SKINS[ CURRENT_SKIN ]}-v.png',
+    'scroll_h'  :f'resources/scroll-{SCROLL_SKINS[ CURRENT_SKIN ]}-h.png',
     'knob'      : 'resources/knob.png',
     'fader'     : 'resources/fader.png',
     'slider'    : 'resources/slider.png',
     'leds'      : 'resources/leds.png',
-    'buttons'   :  f'resources/{BUTTON_SKINS[ CURRENT_SKIN ]}.png',
     'jog_wheel' : 'resources/jog_wheel.png',
     'valve'     : 'resources/valve.png',
 }
