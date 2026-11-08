@@ -296,18 +296,18 @@ class LcdDemo(object):
     VERSION     = 1.0
     BOOT_SPLASH = [
         [
-            "▛▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▜",
-            "▌ ▐▌    ▐▌   ▐▌ ▞▀▀▀▀ ▜▛   ▜▛ ▐",
-            "▌ ▐▌    ▐▌   ▐▌ ▀▀▀▀▚ ▐▛▀▀▀▜▌ ▐",
-            "▌ ▐▙▄▄▄ ▐▙▄▄▄▟▌ ▄▄▄▄▞ ▟▙   ▟▙ ▐",
-            "▙▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▟",
+            "▛▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▜",
+            "▌ ▐▌    ▐▌   ▐▌ ▞▀▀▀▀ ▜▛   ▜▛  ▐",
+            "▌ ▐▌    ▐▌   ▐▌ ▀▀▀▀▚ ▐▛▀▀▀▜▌  ▐",
+            "▌ ▐▙▄▄▄ ▐▙▄▄▄▟▌ ▄▄▄▄▞ ▟▙   ▟▙  ▐",
+            f"▚   FW.Ver.{str(VERSION).ljust(4,'0')} / Standalone   ▞",
         ],
         [
-            "▛▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▜",
-            "▌  ▗▛▀▀▀▀ ▐▛▀▚▞▀▜▌ ▚  ▞   ▜▌  ▐",
-            "▌  ▐▛▀▀▀▀ ▐▌ ▐▌ ▐▌ ▗▀▀▖ - ▐▌  ▐",
-            "▌   ▀▀▀▀▀ ▀▀ ▀▀ ▀▀ ▘  ▝   ▀▀  ▐",
-           f"▚  FW.Ver. {str(VERSION).ljust(4,'0')} / Standalone  ▞",
+            "▛▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▜",
+            "▌  ▗▛▀▀▀▀ ▐▛▀▚▞▀▜▌ ▚  ▞   ▜▌   ▐",
+            "▌  ▐▛▀▀▀▀ ▐▌ ▐▌ ▐▌ ▗▀▀▖ - ▐▌   ▐",
+            "▌   ▀▀▀▀▀ ▀▀ ▀▀ ▀▀ ▘  ▝   ▀▀   ▐",
+           f"▚   FW.Ver.{str(VERSION).ljust(4,'0')} / Standalone   ▞",
         ]        
     ]
 
@@ -1016,9 +1016,8 @@ class LcdDemo(object):
 
         for index, glyph in enumerate(glyphs):
             # Independent vertical bob, depth/size breathing and lateral wobble.
-            phase = t * 2.0 + index * 0.73
+            phase = t * 4.0 + index * 0.73
             scale = 0.58 + 0.92 * (0.5 + 0.5 * math.sin(phase * 0.82))
-            scale = 0.58 + 2.42 * (0.5 + 0.5 * math.sin(phase * 0.82))
             y_shift = math.sin(phase * 1.31) * max(1.0, g.height * 0.17)
             x_shift = math.sin(phase * 0.91 + 0.6) * 1.8
             x0 = cursor + x_shift
