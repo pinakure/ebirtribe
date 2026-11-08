@@ -71,8 +71,8 @@ class UI:
         app.fonts.monospace = pygame.font.SysFont("Consolas", 16)
         
         app.fonts.ocr       .offset = -2
-        app.fonts.dot_xs    .offset = -2
-        app.fonts.dot_m     .offset = -4
+        app.fonts.dot_xs    .offset = 2
+        app.fonts.dot_m     .offset = -2
         app.fonts.dot_l     .offset = +3
         app.fonts.dot_xl    .offset = +4
         app.fonts.segments  .offset = +6
