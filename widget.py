@@ -637,7 +637,7 @@ class Lcd(Widget):
         Lcd._demo           = LcdDemo
         self.columns        = int(columns)
         self.rows           = int(rows)
-        self.row_height     = (height-12) // rows
+        self.row_height     = (height-11) // rows
         self.column_width   = (width - 4) // columns
         self.skin           = skin
         self.color          = (255, 128, 0)
@@ -649,6 +649,17 @@ class Lcd(Widget):
         self._demo_started  = pygame.time.get_ticks()
         self._demo_frame    = 0
         self._demo_enabled  = True
+        self.scroll         = [0,0]
+        self.scroll_height  = [16,12]
+        self.scroll_rect    = (
+            pygame.Rect(x,y+height-8,width-7,5),
+            pygame.Rect(x+width-6,y,5,height-8)
+        )
+        self.scroll_knob    = (
+            pygame.Rect(x,y+height-8,5,5),
+            pygame.Rect(x+width-6,y,5,5),
+        )
+                
         Lcd._demo.init(self)
         super().__init__(Widget.LCD, name, x, y, width, height, 0, 0, 0)
         self.interactive = False
@@ -728,15 +739,30 @@ class Lcd(Widget):
     def render(self, app):
         self.update()
         surface = app.screen
-        pygame.draw.rect( surface, (255, 0, 128), self.rect, 1)
+        #pygame.draw.rect( surface, (255, 0, 128), self.rect, 1)
+        
+        ox, oy    = self.scroll
+        self.scroll[0] += 0.01 if self.scroll[0] < self.scroll_height[0] else 0
+        self.scroll[1] += 0.01 if self.scroll[1] < self.scroll_height[1] else 0
+        rx, ry      = self.scroll_rect
+        sx, sy      = self.scroll_knob
+        hx, hy      = self.scroll_height
+        sx.x        = ((rx.x + int((ox / hx if hx != 0 else 0) * (rx.width  - sx.width )))//5)*5
+        sy.y        = ((ry.y + int((oy / hy if hy != 0 else 0) * (ry.height - sy.height)))//5)*5
+        #pygame.draw.rect( surface, (255,  0, 128, 32), self.scroll_rect[0],1)
+        #pygame.draw.rect( surface, self.color        , self.scroll_knob[0])
+        surface.blit( app.resources.scroll_h, (sx.x, sx.y), area=(min(sx.x, rx.width-6), 0, 5,5))
+        #pygame.draw.rect( surface, (255,  0, 128, 32), self.scroll_rect[1],1)
+        #pygame.draw.rect( surface, self.color        , self.scroll_knob[1])
+        surface.blit( app.resources.scroll_v, (sy.x, sy.y), area=(0, min(sy.y, ry.height-6), 5,5))
+        
         if self.mode == self.TEXT_MODE:
             lines = self._text_lines
             for row, line in enumerate(lines):
                 wide = self._line_wide[row]
                 font = app.fonts.dot_xs if wide else app.fonts.dot_m
                 txt = font.render(line, True, self.color)
-                surface.blit(txt, (self.x, self.y + row * self.row_height + font.offset),
-                             area=(0, 0, self.width - 8, self.row_height))
+                surface.blit(txt, (self.x, self.y + row * self.row_height + font.offset))
             return
 
         if self.mode == self.MIXED_MODE:
