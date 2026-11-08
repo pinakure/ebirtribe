@@ -38,7 +38,7 @@ and the emulator classes. This is intentionally powerful: only run code you
 trust.
 """
 
-from __future__ import annotations
+from __future__     import annotations
 
 import ast
 import math
@@ -46,10 +46,9 @@ import shlex
 import threading
 import time
 import wave
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-
+from dataclasses    import dataclass, field
+from pathlib        import Path
+from typing         import Dict, List, Optional, Tuple
 import numpy as np
 
 SAMPLE_RATE = 44100
@@ -547,13 +546,54 @@ class Groovebox:
         return self._master(out)
 
     def _master(self, audio):
-        gain = self.pattern.master_gain * (1.0 + self.tube_gain * 1.8)
-        # Valve Force-inspired global soft saturation.
-        audio = np.tanh(audio * gain * (1.0 + self.tube_gain * 3.0))
-        peak = np.max(np.abs(audio)) if audio.size else 0.0
+        """
+        Emulación avanzada estilo Valve Force (Triodo 12AX7 / ECC83)
+        Reemplaza la función simple de np.tanh por un modelo no lineal asimétrico.
+        """
+        if audio.size == 0:
+            return audio
+            
+        # 1. Configuración de Ganancia (Tube Gain) e Inyección Dinámica
+        # Mapeamos la ganancia maestra combinada con el parámetro tube_gain del instrumento
+        gain_drive = self.pattern.master_gain * (1.0 + self.tube_gain * 5.0)
+        
+        # Amplificamos la señal analógica virtual antes de entrar a la aduana de electrones
+        audio_driven = audio * gain_drive
+        
+        # 2. Factor de Asimetría (Bias del Cátodo Físico)
+        # Una válvula real no distorsiona simétricamente debido a la corriente de polarización DC.
+        # A mayor ganancia del tubo, mayor es el desplazamiento del punto de operación (Bias Shift).
+        bias_shift = self.tube_gain * 0.28
+        
+        # 3. Procesamiento No Lineal Asimétrico (Flujo de Electrones)
+        # Aplicamos la función matemática al audio con offset de continua
+        audio_biased = audio_driven + bias_shift
+        
+        # El soft-clipping emula la saturación natural donde los picos se redondean.
+        # Restamos np.tanh(bias_shift) para eliminar el offset DC resultante de la ecuación
+        # y evitar dañar los altavoces o generar clics digitales.
+        audio_saturated = np.tanh(audio_biased) - np.tanh(bias_shift)
+        
+        # 4. Filtro de suavizado pasivo (Emulación de la capacitancia interna de placa)
+        # Las válvulas físicas absorben de forma natural las frecuencias ultra-altas muy estridentes.
+        # Implementamos un filtro pasa-bajos de un solo polo (One-Pole Low Pass Filter).
+        if not hasattr(self, '_valve_filter_state'):
+            self._valve_filter_state = np.zeros(2, dtype=np.float32) # Estado para L y R
+            
+        # Coeficiente del filtro (a mayor saturación, el circuito se vuelve ligeramente más oscuro)
+        alpha = 0.85 - (self.tube_gain * 0.15) 
+        
+        for i in range(len(audio_saturated)):
+            self._valve_filter_state = self._valve_filter_state + alpha * (audio_saturated[i] - self._valve_filter_state)
+            audio_saturated[i] = self._valve_filter_state
+
+        # 5. Limitador de Seguridad Final (Brickwall)
+        peak = np.max(np.abs(audio_saturated))
         if peak > 0.98:
-            audio *= 0.98 / peak
-        return audio.astype(np.float32)
+            audio_saturated *= 0.98 / peak
+            
+        return audio_saturated.astype(np.float32)
+
 
     def start_audio(self):
         try:
