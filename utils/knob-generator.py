@@ -83,7 +83,7 @@ def generate_frame(current, following, fraction, frame_size):
     )
 
 
-def generate_atlas(input_path, input_frames, vertical, output_path):
+def generate_atlas(input_path, input_frames, vertical, output_path, skip_last_frame):
 
     global INPUT_FRAMES
     INPUT_FRAMES = input_frames
@@ -133,19 +133,13 @@ def generate_atlas(input_path, input_frames, vertical, output_path):
     # Diez frames de salida por cada frame de entrada.
     output_frames = input_frames * 10
 
-    # Tamaño de celda: suficiente para evitar recortes
-    # durante cualquier rotación.
-    output_size = math.ceil(frame_size * math.sqrt(2))
-
-    # Distribución automática del atlas.
-    columns = math.ceil(math.sqrt(output_frames))
-    rows = math.ceil(output_frames / columns)
+    # Atlas vertical: una columna y tantos frames como filas.
+    output_size = frame_size
+    columns = 1
+    rows = output_frames
 
     output_atlas = pygame.Surface(
-        (
-            columns * output_size,
-            rows * output_size
-        ),
+        (frame_size, output_frames * frame_size),
         pygame.SRCALPHA
     )
 
@@ -164,37 +158,28 @@ def generate_atlas(input_path, input_frames, vertical, output_path):
         following = frames[(i + 1) % input_frames]
 
         for subframe in range(10):
+            if skip_last_frame and i == input_frames - 1:
+                # Repetir el último frame original sin interpolación.
+                rendered = current.copy()
+            else:
+                fraction = subframe / 10.0
 
-            fraction = subframe / 10.0
+                rendered = generate_frame(
+                    current,
+                    following,
+                    fraction,
+                    frame_size
+                )
 
-            rendered = generate_frame(
-                current,
-                following,
-                fraction,
-                frame_size
-            )
-
-            # Posición en el atlas de salida.
-            column = frame_index % columns
-            row = frame_index // columns
-
-            cell_x = column * output_size
-            cell_y = row * output_size
-
-            # Centrar el resultado en su celda.
-            rect = rendered.get_rect()
-            rect.center = (
-                cell_x + output_size // 2,
-                cell_y + output_size // 2
-            )
-
+                # Posición vertical en el atlas.
+                # El frame se dibuja desde (0, 0) de su celda.
+                # Cualquier parte que sobresalga queda recortada.
+            size = rendered.get_size()
             output_atlas.blit(
                 rendered,
-                rect.topleft
+                (0 + ((frame_size//2)-(size[0]//2)), frame_index * frame_size + ((frame_size//2)-(size[1]//2)) )
             )
-
             frame_index += 1
-
         print(
             f"\rProcesados: {frame_index}/{output_frames}",
             end=""
@@ -276,7 +261,12 @@ def main():
         "--output",
         help="Nombre del atlas de salida"
     )
-
+     
+    parser.add_argument(
+        "--skip-last-frame",
+        action="store_true",
+        help="Repeat the last source frame 10 times without interpolation"
+    )
     args = parser.parse_args()
 
     if args.frames < 1:
@@ -295,7 +285,8 @@ def main():
         args.input,
         args.frames,
         args.vertical,
-        output_path
+        output_path,
+        args.skip_last_frame,
     )
 
 
