@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "LedItem.h"
 #include <cmath>
 
 YourVstAudioProcessor::YourVstAudioProcessor()
@@ -23,8 +24,16 @@ YourVstAudioProcessor::YourVstAudioProcessor()
     );
 }
 
-YourVstAudioProcessor::~YourVstAudioProcessor()
+YourVstAudioProcessor::~YourVstAudioProcessor(){
+}
+
+void YourVstAudioProcessor::initialiseBuilder(
+    foleys::MagicGUIBuilder& builder)
 {
+    builder.registerJUCEFactories();
+    builder.registerJUCELookAndFeels();
+
+    builder.registerFactory("LED", &LedItem::factory);
 }
 
 void YourVstAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)

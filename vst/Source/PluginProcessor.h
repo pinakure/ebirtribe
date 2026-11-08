@@ -18,26 +18,27 @@ public:
     ~YourVstAudioProcessor() override;
 
     // Ciclo de vida y procesamiento de audio
-    void prepareToPlay (double sampleRate, int samplesPerBlock) override;
-    void releaseResources() override;
-    void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    void    initialiseBuilder(foleys::MagicGUIBuilder& builder) override;
+    void    prepareToPlay (double sampleRate, int samplesPerBlock) override;
+    void    releaseResources() override;
+    void    processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
     // Propiedades generales del plugin
-    const juce::String getName() const override { return "MiPrimerVST"; }
-    bool acceptsMidi() const override { return true; }
-    bool producesMidi() const override { return false; }
-    bool isMidiEffect() const override { return false; }
-    double getTailLengthSeconds() const override { return 0.0; }
+    const   juce::String getName() const override { return "Lush EMX-1"; }
+    bool    acceptsMidi() const override { return true; }
+    bool    producesMidi() const override { return false; }
+    bool    isMidiEffect() const override { return false; }
+    double  getTailLengthSeconds() const override { return 0.0; }
 
     // Presets / programas
-    int getNumPrograms() override { return 1; }
-    int getCurrentProgram() override { return 0; }
-    void setCurrentProgram (int index) override {}
-    const juce::String getProgramName (int index) override { return {}; }
-    void changeProgramName (int index, const juce::String& newName) override {}
-
+    int     getNumPrograms() override { return 1; }
+    int     getCurrentProgram() override { return 0; }
+    void    setCurrentProgram (int index) override {}
+    const   juce::String getProgramName (int index) override { return {}; }
+    void    changeProgramName (int index, const juce::String& newName) override {}
+    
     // Buses de audio
-    bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
+    bool    isBusesLayoutSupported (const BusesLayout& layouts) const override;
 
 
 private:
