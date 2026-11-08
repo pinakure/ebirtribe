@@ -258,6 +258,7 @@ class LcdDemo(object):
     audio_capture_frames = 0
     audio_capture_error = None
     audio_debug_reported = False
+    lcd_color = None
 
     @staticmethod
     def capture_mixer_audio(postmix_ctx, buffer_audio):
@@ -445,7 +446,8 @@ class LcdDemo(object):
             pygame.mixer.music.set_volume(value)
 
     def init(lcd):
-        LcdDemo.lcd     = lcd
+        LcdDemo.lcd         = lcd
+        LcdDemo.lcd_color   = lcd.color
         # Logical geometry never changes.
         # A row may use columns or columns*2 glyphs.
         LcdDemo.narrow  = max(1, lcd.columns)
@@ -1868,7 +1870,7 @@ class LcdDemo(object):
                 LD.center(str(int(progress * 100)).rjust(3) + "%   PLEASE WAIT", LD.wide)
             ])
             LD.glow = 0.92 + 0.08 * math.sin(time * 7.0)
-            lcd.color = (255, 150, 48)
+            lcd.color = LD.lcd_color
             return
 
         # Preserve the original logo layout, using the canonical 0x0A glyph.
@@ -1876,7 +1878,7 @@ class LcdDemo(object):
             boot_time = time - 6.0
             lcd.buffer = LD.lines(LD.BOOT_SPLASH[0 if boot_time < 2.0 else 1])
             LD.glow = 1.0
-            lcd.color = (255, 140, 18)
+            lcd.color = LD.lcd_color
             return
 
         demo_time = time - 13.0
@@ -1886,10 +1888,6 @@ class LcdDemo(object):
         # IDs are kept stable so the dispatcher and per-scene state remain intact.
         schedule = [
             # 1. EMX-1 3D logo
-            (10, 6.5),
-            (4, 6.5), (5, 6.5), (20, 12.0), (6, 6.5), (7, 6.5),
-            (8, 6.5), (14, 9.0), (15, 9.0), (16, 9.0), (17, 9.0),
-            (18, 9.0), (23, 12.0),
             (29, 12.0),
 
             # 2. Character / typography tests
@@ -2042,4 +2040,14 @@ class LcdDemo(object):
             lcd.functions = [ticker_line[:11], ticker_line[11:22], ticker_line[22:32]]
         # Restore the original steady glow; the random blinking belongs only to the smiley.
         LD.glow = .84 + .16 * math.sin(time * 2.1)
-        lcd.color = (255, int(112 + 28 * LD.glow), int(6 + 8 * LD.glow))
+        r,g,b = LD.lcd_color
+        lcd.color = (
+            min(255,int(r + (28 * LD.glow))),
+            min(255,int(g + (28 * LD.glow))),
+            min(255,int(b + (28 * LD.glow)))
+        )
+        lcd.color = (
+            int(max(r-28,0) + 28 * LD.glow),
+            int(max(g-28,0) + 28 * LD.glow),
+            int(max(b-28,0) + 28 * LD.glow)
+        )

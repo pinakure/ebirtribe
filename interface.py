@@ -1,5 +1,24 @@
 from widget     import Knob, Slider, Fader, Button, Pad, Led, Valve, Lcd, Vumeter, JogWheel, LedTypes
 
+CURRENT_SKIN    = 3
+DECK_SKINS      = [ 'blue'          , 'red'         , 'pink'        , 'purple'      ]
+SCROLL_SKINS    = [ 'yellow'        , 'green'       , 'green'       , 'blue'        ]
+BUTTON_SKINS    = [ 'red'           , 'blue'        , 'green'       , 'red'         ]
+DISPLAY_COLOR   = [(255, 128,  48)  ,(128, 248,  48),(128, 248,  48),( 48, 160, 255)]
+
+RESOURCES = {
+    'deck'      :f'resources/deck-{DECK_SKINS[ CURRENT_SKIN ]}.png',
+    'buttons'   :f'resources/buttons-{BUTTON_SKINS[ CURRENT_SKIN ]}.png',
+    'scroll_v'  :f'resources/scroll-{SCROLL_SKINS[ CURRENT_SKIN ]}-v.png',
+    'scroll_h'  :f'resources/scroll-{SCROLL_SKINS[ CURRENT_SKIN ]}-h.png',
+    'knob'      : 'resources/knob.png',
+    'fader'     : 'resources/fader.png',
+    'slider'    : 'resources/slider.png',
+    'leds'      : 'resources/leds.png',
+    'jog_wheel' : 'resources/jog_wheel.png',
+    'valve'     : 'resources/valve.png',
+}
+
 class Leds:
     STEP_01             = 0x00
     STEP_02             = 0x01
@@ -237,7 +256,7 @@ class Lcds:
     MAIN                = 0x00
     def get():
         return {
-            Lcds.MAIN                   : Lcd('MAIN'      ,  95, 150, 360, 168),
+            Lcds.MAIN                   : Lcd('MAIN'      ,  95, 150, 360, 168, color = DISPLAY_COLOR[CURRENT_SKIN]),
         }
 
 class CallBacks:    
@@ -355,24 +374,6 @@ class CallBacks:
     def tap(widget, event, app):
         print(dir(widget))
 
-CURRENT_SKIN    = 0
-DECK_SKINS      = [ 'blue'  , 'red'     , 'pink'    , 'blue'    ]
-SCROLL_SKINS    = [ 'yellow', 'green'   , 'green'   , 'yellow'  ]
-BUTTON_SKINS    = [ 'red'   , 'yellow'  , 'yellow'  , 'red'     ]
-
-RESOURCES = {
-    'deck'      :f'resources/deck-{DECK_SKINS[ CURRENT_SKIN ]}.png',
-    'buttons'   :f'resources/buttons-{BUTTON_SKINS[ CURRENT_SKIN ]}.png',
-    'scroll_v'  :f'resources/scroll-{SCROLL_SKINS[ CURRENT_SKIN ]}-v.png',
-    'scroll_h'  :f'resources/scroll-{SCROLL_SKINS[ CURRENT_SKIN ]}-h.png',
-    'knob'      : 'resources/knob.png',
-    'fader'     : 'resources/fader.png',
-    'slider'    : 'resources/slider.png',
-    'leds'      : 'resources/leds.png',
-    'jog_wheel' : 'resources/jog_wheel.png',
-    'valve'     : 'resources/valve.png',
-}
-    
 JUMP_TABLE = {
     Faders.TEMPO                : CallBacks.tempo,
     Knobs.TUNE_PITCH            : CallBacks.pitch,

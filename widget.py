@@ -633,14 +633,13 @@ class Lcd(Widget):
     MIXED_MODE = 1
     RASTER_MODE = 2
 
-    def __init__(self, name="UnnamedLcd", x=0, y=0, width=96, height=96, columns=16, rows=6, skin=0):
+    def __init__(self, name="UnnamedLcd", x=0, y=0, width=96, height=96, columns=16, rows=6, color=0):
         Lcd._demo           = LcdDemo
         self.columns        = int(columns)
         self.rows           = int(rows)
         self.row_height     = (height-11) // rows
         self.column_width   = (width - 4) // columns
-        self.skin           = skin
-        self.color          = (255, 128, 0)
+        self.color          = color
         self.mode           = self.TEXT_MODE
         self._text_lines    = ["" for _ in range(rows)]
         self._line_wide     = [False for _ in range(rows)]
@@ -739,7 +738,6 @@ class Lcd(Widget):
     def render(self, app):
         self.update()
         surface = app.screen
-        #pygame.draw.rect( surface, (255, 0, 128), self.rect, 1)
         
         ox, oy    = self.scroll
         self.scroll[0] += 0.01 if self.scroll[0] < self.scroll_height[0] else 0
@@ -749,11 +747,7 @@ class Lcd(Widget):
         hx, hy      = self.scroll_height
         sx.x        = ((rx.x + int((ox / hx if hx != 0 else 0) * (rx.width  - sx.width )))//5)*5
         sy.y        = ((ry.y + int((oy / hy if hy != 0 else 0) * (ry.height - sy.height)))//5)*5
-        #pygame.draw.rect( surface, (255,  0, 128, 32), self.scroll_rect[0],1)
-        #pygame.draw.rect( surface, self.color        , self.scroll_knob[0])
         surface.blit( app.resources.scroll_h, (sx.x, sx.y), area=(min(sx.x, rx.width-6), 0, 5,5))
-        #pygame.draw.rect( surface, (255,  0, 128, 32), self.scroll_rect[1],1)
-        #pygame.draw.rect( surface, self.color        , self.scroll_knob[1])
         surface.blit( app.resources.scroll_v, (sy.x, sy.y), area=(0, min(sy.y, ry.height-6), 5,5))
         
         if self.mode == self.TEXT_MODE:
