@@ -52,10 +52,10 @@
   <EXPORTFORMATS>
     <LINUX_MAKE targetFolder="Builds/LinuxMakefile">
       <CONFIGURATIONS>
-        <CONFIGURATION isDebug="1" name="Debug" headerPath="/usr/include/freetype2"
-                       defines="FOLEYS_SHOW_GUI_EDITOR_PALLETTE=1"/>
-        <CONFIGURATION isDebug="0" name="Release" headerPath="/usr/include/freetype2"
-                       defines="FOLEYS_SHOW_GUI_EDITOR_PALLETTE=0"/>
+        <CONFIGURATION isDebug="1" name="Debug" headerPath="/usr/include/freetype2&#10;/usr/include/gtk-3.0&#10;/usr/include/glib-2.0&#10;/usr/include/glib-2.0/include&#10;/usr/include"
+                       defines="FOLEYS_SHOW_GUI_EDITOR_PALLETTE=1&#10;JUCE_WEB_BROWSER=0"/>
+        <CONFIGURATION isDebug="0" name="Release" headerPath="/usr/include/freetype2&#10;/usr/include/gtk-3.0&#10;/usr/include/glib-2.0&#10;/usr/include/glib-2.0/include&#10;/usr/include"
+                       defines="FOLEYS_SHOW_GUI_EDITOR_PALLETTE=0&#10;JUCE_WEB_BROWSER=0"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_audio_basics" path="/usr/share/juce/modules"/>
@@ -73,7 +73,7 @@
         <MODULEPATH id="juce_osc" path="/usr/share/juce/modules"/>
         <MODULEPATH id="juce_audio_devices" path="/usr/share/juce/modules"/>
         <MODULEPATH id="juce_audio_utils" path="/usr/share/juce/modules"/>
-        <MODULEPATH id="foleys_gui_magic" path="/usr/share/juce/modules"/>
+        <MODULEPATH id="foleys_gui_magic" path="Modules"/>
         <MODULEPATH id="juce_cryptography" path="/usr/share/juce/modules"/>
         <MODULEPATH id="juce_audio_processors_headless" path="/usr/share/juce/modules"/>
       </MODULEPATHS>
